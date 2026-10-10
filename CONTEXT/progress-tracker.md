@@ -5,7 +5,7 @@ change.
 
 ## Current Phase
 
-- Feature 04 complete; Feature 05: TBD
+- Feature 07 complete; Feature 08: TBD
 
 ## Current Goal
 
@@ -189,20 +189,179 @@ change.
     clock (Clerk "iat in the future"); fixed by a Windows time
     sync plus a fresh browser session.
 
+- 05 Prisma (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/05-PRISMA.md`):
+  - Installed `@prisma/client` + `@prisma/adapter-pg` 7.10.0,
+    `pg`, `dotenv`; dev: `prisma` 7.10.0 (pinned — npm's
+    `latest` tag is `8.0.0-rc.22`, whose deps don't resolve
+    and which wouldn't match the 7.10 client), `tsx`,
+    `@types/pg`. `postinstall` runs `prisma generate`.
+  - `prisma init` was not run: in 7.10 it writes a `.env`
+    with a placeholder `DATABASE_URL` whenever `.env` is
+    missing (only `.env.local` exists). Its output was
+    reproduced by hand from the CLI's own templates, so no
+    `.env` file was created.
+  - `prisma.config.ts` — loads `.env.local` via dotenv;
+    `schema: "prisma"` (multi-file), migrations in
+    `prisma/migrations`; datasource url from
+    `process.env["DATABASE_URL"]` (not `env()`, which throws,
+    so `prisma generate` / `postinstall` work without it).
+  - `prisma/schema.prisma` — `prisma-client` generator,
+    output `app/generated/prisma` (git-ignored); postgresql
+    datasource (url lives in the config in Prisma 7).
+  - `prisma/models/project.prisma` — `ProjectStatus` enum
+    (`DRAFT` | `ARCHIVED`) and `Project` (cuid id, ownerId,
+    name, description?, status default `DRAFT`,
+    canvasJsonPath?, createdAt/updatedAt; indexes on ownerId
+    and createdAt). `collaborators` back-relation field is
+    the only addition (Prisma requires it).
+  - `prisma/models/project-collaborator.prisma` —
+    `ProjectCollaborator` (cuid id, projectId → Project with
+    `onDelete: Cascade`, email, createdAt; unique
+    (projectId, email); index on email).
+  - `lib/prisma.ts` — exports `prisma`, one `PrismaClient`
+    over `PrismaPg({ connectionString: DATABASE_URL })`,
+    cached on `globalThis` outside production.
+  - Migration `20261010225718_init` created and applied to
+    the remote Prisma Postgres database.
+  - Verified: `prisma validate`, `prisma migrate status`
+    ("up to date"); a tsx script through `lib/prisma.ts`
+    counted 0 rows in both tables, listed all 6 expected
+    indexes, confirmed the FK is `ON DELETE CASCADE`, and
+    that repeated imports return the same instance. `tsc`,
+    `eslint`, `npm run build` pass. No `.env*` file was
+    read or edited.
+
+- 06 Project APIs (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/06-PROJECT-APIS.md`):
+  - `lib/project-data.ts` (`server-only`) — the Prisma
+    queries, reusable from server components:
+    `listProjectsForUser` (owned + shared via a collaborator
+    row whose email matches, case-insensitive; owned rows are
+    excluded from `shared`; newest first), `createProject`,
+    `getProjectOwnerId`, `renameProject`, `deleteProject`.
+    Responses select every `Project` field except
+    `canvasJsonPath` (internal Blob pointer).
+  - Project ids: `<toProjectSlug(name)>-<6 chars a-z0-9>`
+    (`project-<suffix>` for an empty slug), suffix from
+    `crypto.randomInt`; on a unique-key collision (P2002)
+    it retries with a new suffix, up to 5 attempts.
+  - `lib/api-response.ts` (`server-only`) — `jsonError()`
+    (`{ error }` + status) and `readJsonObject()` (null for
+    invalid JSON or a non-object body).
+  - `lib/projects.ts` — added `DEFAULT_PROJECT_NAME`
+    ("Untitled Project") and `PROJECT_NAME_MAX_LENGTH` (100).
+  - `app/api/projects/route.ts` — `GET` → `{ owned, shared }`
+    (email from Clerk `currentUser()`); `POST` → 201 project.
+    `app/api/projects/[projectId]/route.ts` — `PATCH` → 200
+    project, `DELETE` → 204 (collaborators cascade in the DB).
+    Order in every handler: 401 → body validation (400) →
+    404 → 403 → write. `ownerId` always comes from `auth()`;
+    a client-sent owner id is ignored.
+  - POST with an empty body is treated as `{}` (name is
+    optional); any non-empty body must be a JSON object.
+  - `proxy.ts` — `/api` and `/api/(.*)` added to the public
+    matcher so handlers return their own 401 JSON; the
+    middleware still runs on them so `auth()` works.
+  - Installed `server-only` as a direct dependency (it was
+    only transitive via Clerk).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Against
+    `next start`, signed-out GET/POST/PATCH/DELETE return 401
+    `{"error":"Unauthorized"}`. A script ran the real route
+    handlers against the database with Clerk's `auth()` /
+    `currentUser()` stubbed (30 checks, all pass): 400 for
+    invalid JSON, non-object bodies, non-string names, 101-char
+    names, blank PATCH names, and before the 404 lookup; 201 with
+    trimmed names, `"Untitled Project"` default, ids matching
+    `my-cafe-flow-xxxxxx` / `project-xxxxxx`, spoofed `ownerId`
+    ignored; shared listing by case-insensitive email; 403 for a
+    collaborator renaming/deleting; 404 for unknown ids; 204
+    delete with collaborator rows cascaded. Test rows were
+    deleted afterwards.
+  - Not verified: the routes with a real Clerk session (needs
+    a browser sign-in). No UI files changed.
+
+- 07 Wire editor home (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/07-WIRE-EDITOR-HOME.md`):
+  - `app/editor/layout.tsx` — inside a `<Suspense>`
+    boundary, `EditorChrome` creates (does not await) a
+    promise from `loadEditorProjects()`: Clerk `auth()` +
+    `currentUser()` email → `listProjectsForUser()` from
+    `lib/project-data.ts`, narrowed to `{ id, name, ownerId }`.
+    Per the authentication-with-cache-components guide, so
+    the navbar, page and sidebar frame stay in the static
+    shell (`/editor` is now `◐`) and only the project lists
+    stream in. Signed out → `redirectToSignIn()`.
+  - `lib/projects.ts` — `EditorProjects`
+    (`currentUserId`, `owned`, `shared`).
+  - `EditorShell` takes `projectsPromise` and passes it to
+    `ProjectSidebar`; each tab's list resolves it with
+    `use()` behind its own `<Suspense>` ("Loading
+    projects…" spinner). My Projects = `owned`, Shared =
+    `shared`; rename/delete buttons show when
+    `ownerId === currentUserId` (the real Clerk user id).
+  - `lib/mock-projects.ts` deleted; no mock data remains.
+  - `hooks/use-project-dialogs.ts` — same hook, now calls
+    the API: create `POST /api/projects` → `router.push`
+    to `/editor/<id>`; rename `PATCH`; delete `DELETE`, and
+    `router.replace("/editor")` when the current path is that
+    project. Each success then runs `router.refresh()`.
+    Close + navigation + refresh run in one transition, so
+    the dialog keeps its spinner until the sidebar has the
+    new data. Push comes before refresh on purpose: a
+    navigation discards a pending refresh, while a refresh
+    queued after it re-fetches the shared layout and clears
+    the client segment cache and BFCache (checked in Next's
+    `refresh-reducer.js`), so `/editor` shows the new
+    project when the user returns.
+  - Failed requests keep the dialog open and show the API's
+    `error` message (or a network / generic message) under
+    the form (`role="alert"`, `text-destructive`). The error
+    clears when a dialog opens or is resubmitted.
+  - Create dialog preview reads `Room ID: <slug>-xxxxxx`;
+    rename keeps `Slug: <slug>`. Validation and loading
+    states unchanged (no client max-length check; the API's
+    100-char 400 shows in the dialog).
+  - Verified: `tsc`, `eslint`, `npm run build` pass.
+    Prerendered `/editor` HTML has the navbar, home heading,
+    sidebar frame and "Loading projects…" fallback, and no
+    mock project names. Signed out, `/editor` still 307s and
+    `/api/projects` returns 401.
+  - Not verified (needs a browser signed in with Clerk):
+    real projects in the sidebar, create → `/editor/<id>`
+    (a not-found page until the workspace page exists),
+    rename/delete updating the sidebar, the in-dialog error.
+  - Browser-verified by the owner (2026-10-10): empty
+    sidebar on a fresh database; create shows the
+    `<slug>-xxxxxx` room id preview, saves, and navigates to
+    `/editor/<slug>-<suffix>` (404 as expected); the project
+    appears in My Projects; rename and delete update the
+    sidebar. The in-dialog error state was not exercised.
+  - Live API check (signed out, `next start`): GET/POST
+    `/api/projects` and PATCH/DELETE `/api/projects/:id` all
+    return 401 JSON.
+  - Note: `pg` warns that `sslmode=require` will change
+    meaning in pg v9; the owner can set
+    `sslmode=verify-full` in `DATABASE_URL` (same behavior
+    today) to silence it.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 05 (TBD)
+- Feature 08 (TBD)
 
 ## Open Questions
 
-- Project dialogs are UI only: create/rename/delete close
-  after a simulated delay and do not change the mock list.
-  Ownership uses `MOCK_CURRENT_USER_ID`, not the Clerk user
-  id. Both are replaced when the project API lands.
+- `pg` logs a security warning on connect: the
+  `DATABASE_URL` uses `sslmode=require` (or `prefer` /
+  `verify-ca`), which pg 8 treats as `verify-full` but pg 9
+  will downgrade to libpq semantics. Owner can set
+  `sslmode=verify-full` in `.env.local` (and on Vercel) to
+  keep today's behavior and silence it. Agents can't edit
+  that file.
 
 - Auth redirects live on `ClerkProvider` props, not in
   `.env.local`: reading `.env.local` was blocked this
@@ -215,9 +374,16 @@ change.
 - Clerk 7.9 logs a deprecation warning for `createRouteMatcher`
   (used in `proxy.ts`, as the 03 spec requires): it will be
   removed in Clerk's next major, and Clerk recommends
-  per-page/route `auth()` checks instead. Works today; decide
-  whether to add resource-level checks (e.g. in API routes
-  and the editor layout) when those features land.
+  per-page/route `auth()` checks instead. Works today. API
+  routes now do their own `auth()` checks (feature 06); the
+  editor layout still relies on `proxy.ts`.
+- Clerk dev instance: a signed-out browser *navigation* to an
+  `/api` URL (e.g. typing it in the address bar) gets Clerk's
+  dev-browser handshake redirect before the handler runs.
+  `fetch` / curl requests get the handler's 401 JSON. Comes
+  from Clerk's development-instance cookie sync, not the app;
+  expected to go away on a production Clerk instance
+  (not verified).
 - Theme palette: the spec said to match "the existing dark
   theme in `globals.css`", but none existed. shadcn's neutral
   dark palette is used and is now documented in
@@ -235,6 +401,18 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Prisma 7 with a driver adapter (`@prisma/adapter-pg`), no
+  Accelerate. Import the client and model types from
+  `@/app/generated/prisma/client`; app code uses the
+  `prisma` instance from `@/lib/prisma`.
+
+- The editor's project lists are loaded by
+  `app/editor/layout.tsx` as a promise created inside a
+  `<Suspense>` boundary and resolved with `use()` in the
+  sidebar, so `/editor` keeps a static shell. Mutations go
+  through the route handlers, then `router.refresh()`
+  re-runs the layout.
 
 - Project dialog state lives in `EditorShell` (via
   `useProjectDialogs`), not in each page, so the sidebar and

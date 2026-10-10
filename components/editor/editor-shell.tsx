@@ -7,12 +7,19 @@ import { ProjectDialogs } from "@/components/editor/project-dialogs";
 import { ProjectDialogsContext } from "@/components/editor/project-dialogs-context";
 import { ProjectSidebar } from "@/components/editor/project-sidebar";
 import { useProjectDialogs } from "@/hooks/use-project-dialogs";
-import { MOCK_CURRENT_USER_ID, MOCK_PROJECTS } from "@/lib/mock-projects";
+import type { EditorProjects } from "@/lib/projects";
 
 // Client entry point for the editor chrome. Owns the sidebar and project
 // dialog state and renders the canvas (children) underneath the floating
-// sidebar.
-export function EditorShell({ children }: { children?: ReactNode }) {
+// sidebar. `projectsPromise` comes from the server layout; the sidebar
+// resolves it behind its own Suspense boundary.
+export function EditorShell({
+  projectsPromise,
+  children,
+}: {
+  projectsPromise: Promise<EditorProjects>;
+  children?: ReactNode;
+}) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const dialogs = useProjectDialogs();
 
@@ -27,8 +34,7 @@ export function EditorShell({ children }: { children?: ReactNode }) {
           <ProjectSidebar
             isOpen={isSidebarOpen}
             onClose={() => setIsSidebarOpen(false)}
-            projects={MOCK_PROJECTS}
-            currentUserId={MOCK_CURRENT_USER_ID}
+            projectsPromise={projectsPromise}
             onNewProject={dialogs.openCreateDialog}
             onRenameProject={dialogs.openRenameDialog}
             onDeleteProject={dialogs.openDeleteDialog}

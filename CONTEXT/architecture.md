@@ -38,11 +38,22 @@ paths below are relative to it.
 - `hooks/` — client hooks for dialog state, form state and
   mutations.
 - `lib/` — shared utilities: `cn()`, Prisma client
-  singleton, Liveblocks and Blob helpers.
+  singleton, Liveblocks and Blob helpers. Database queries
+  live in `server-only` data modules (e.g.
+  `lib/project-data.ts`) that route handlers and server
+  components both call.
 - `prisma/` — Prisma schema, one file per model under
   `prisma/models/`, and migrations.
+  `prisma.config.ts` (repo root) points the CLI at it and
+  loads `DATABASE_URL` from `.env.local`.
+- `app/generated/prisma/` — generated Prisma client
+  (git-ignored, rebuilt by `postinstall`). Not edited by
+  hand.
 - `proxy.ts` — Clerk route protection. This is the Next.js
   16 name for middleware; do not create `middleware.ts`.
+  `/api` routes are public in `proxy.ts` (the middleware
+  still runs so `auth()` works); every route handler checks
+  `auth()` itself and returns 401 JSON.
 
 ## Storage Model
 

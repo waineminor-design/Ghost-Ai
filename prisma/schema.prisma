@@ -1,0 +1,11 @@
+// Generator and datasource only. Models live in prisma/models/,
+// one file per model. The connection URL is set in prisma.config.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
