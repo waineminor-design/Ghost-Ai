@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import { toProjectSlug, type Project } from "@/lib/projects";
 
@@ -13,6 +14,8 @@ export interface ProjectDialogs {
   // False when the name is blank or produces an empty slug.
   isNameValid: boolean;
   isSubmitting: boolean;
+  // Message from the last failed request; the dialog stays open.
+  error: string | null;
   setName: (name: string) => void;
   openCreateDialog: () => void;
   openRenameDialog: (project: Project) => void;
@@ -21,12 +24,45 @@ export interface ProjectDialogs {
   submit: () => Promise<void>;
 }
 
-// Simulated request time until the project API exists.
-const MOCK_REQUEST_MS = 600;
+const FALLBACK_ERROR = "Something went wrong. Please try again.";
 
-// Owns dialog, form (name, slug) and loading state for the create,
-// rename and delete project dialogs.
+// Sends a project API request. Resolves with the parsed JSON body (null
+// for 204); throws an Error carrying the API's `error` message otherwise.
+async function sendProjectRequest(
+  url: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body?: { name: string },
+): Promise<unknown> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error("Could not reach the server. Check your connection.");
+  }
+
+  const data: unknown =
+    response.status === 204 ? null : await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      data && typeof data === "object" && "error" in data
+        ? String(data.error)
+        : FALLBACK_ERROR;
+    throw new Error(message);
+  }
+  return data;
+}
+
+// Owns dialog, form (name, slug), loading and error state for the
+// create, rename and delete project dialogs, and calls the project API.
 export function useProjectDialogs(): ProjectDialogs {
+  const router = useRouter();
+  const pathname = usePathname();
+
   const [activeDialog, setActiveDialog] = useState<ProjectDialogType | null>(
     null,
   );
@@ -34,26 +70,34 @@ export function useProjectDialogs(): ProjectDialogs {
   // animation.
   const [targetProject, setTargetProject] = useState<Project | null>(null);
   const [name, setName] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isRequesting, setIsRequesting] = useState(false);
+  // Covers the navigation/refresh after a successful request, so the
+  // dialog closes once the sidebar shows the change.
+  const [isRefreshing, startRefresh] = useTransition();
+  const isSubmitting = isRequesting || isRefreshing;
 
   const slug = toProjectSlug(name);
   const isNameValid = name.trim() !== "" && slug !== "";
 
+  function openDialog(type: ProjectDialogType, project: Project | null) {
+    setTargetProject(project);
+    setError(null);
+    setActiveDialog(type);
+  }
+
   function openCreateDialog() {
-    setTargetProject(null);
     setName("");
-    setActiveDialog("create");
+    openDialog("create", null);
   }
 
   function openRenameDialog(project: Project) {
-    setTargetProject(project);
     setName(project.name);
-    setActiveDialog("rename");
+    openDialog("rename", project);
   }
 
   function openDeleteDialog(project: Project) {
-    setTargetProject(project);
-    setActiveDialog("delete");
+    openDialog("delete", project);
   }
 
   function closeDialog() {
@@ -65,13 +109,43 @@ export function useProjectDialogs(): ProjectDialogs {
     if (activeDialog === null || isSubmitting) return;
     if (activeDialog !== "delete" && !isNameValid) return;
 
-    setIsSubmitting(true);
+    setError(null);
+    setIsRequesting(true);
     try {
-      // UI only: no API call yet.
-      await new Promise((resolve) => setTimeout(resolve, MOCK_REQUEST_MS));
-      setActiveDialog(null);
+      if (activeDialog === "create") {
+        const project = (await sendProjectRequest("/api/projects", "POST", {
+          name,
+        })) as Project;
+        startRefresh(() => {
+          setActiveDialog(null);
+          router.push(`/editor/${encodeURIComponent(project.id)}`);
+          router.refresh();
+        });
+        return;
+      }
+
+      if (!targetProject) return;
+      const projectPath = `/editor/${encodeURIComponent(targetProject.id)}`;
+      const projectUrl = `/api/projects/${encodeURIComponent(targetProject.id)}`;
+
+      if (activeDialog === "rename") {
+        await sendProjectRequest(projectUrl, "PATCH", { name });
+      } else {
+        await sendProjectRequest(projectUrl, "DELETE");
+      }
+
+      startRefresh(() => {
+        setActiveDialog(null);
+        // Leave a project that no longer exists.
+        if (activeDialog === "delete" && pathname === projectPath) {
+          router.replace("/editor");
+        }
+        router.refresh();
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : FALLBACK_ERROR);
     } finally {
-      setIsSubmitting(false);
+      setIsRequesting(false);
     }
   }
 
@@ -82,6 +156,7 @@ export function useProjectDialogs(): ProjectDialogs {
     slug,
     isNameValid,
     isSubmitting,
+    error,
     setName,
     openCreateDialog,
     openRenameDialog,

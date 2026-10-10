@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ProjectDialogs as ProjectDialogsState } from "@/hooks/use-project-dialogs";
 
+// The server appends a random 6-character suffix to the slug to form the
+// project (room) id; the preview shows its shape.
+const ROOM_ID_SUFFIX_PLACEHOLDER = "-xxxxxx";
+
 interface ProjectDialogsProps {
   dialogs: ProjectDialogsState;
 }
@@ -19,6 +23,7 @@ export function ProjectDialogs({ dialogs }: ProjectDialogsProps) {
     slug,
     isNameValid,
     isSubmitting,
+    error,
     setName,
     closeDialog,
     submit,
@@ -33,6 +38,7 @@ export function ProjectDialogs({ dialogs }: ProjectDialogsProps) {
     slug,
     isNameValid,
     isSubmitting,
+    error,
     onNameChange: setName,
     onOpenChange: handleOpenChange,
     onSubmit: submit,
@@ -47,6 +53,8 @@ export function ProjectDialogs({ dialogs }: ProjectDialogsProps) {
         description="Name your new architecture workspace."
         submitLabel="Create"
         pendingLabel="Creating…"
+        previewLabel="Room ID"
+        previewSuffix={ROOM_ID_SUFFIX_PLACEHOLDER}
       />
       <ProjectNameDialog
         {...nameFormProps}
@@ -55,11 +63,13 @@ export function ProjectDialogs({ dialogs }: ProjectDialogsProps) {
         description="Choose a new name for this project."
         submitLabel="Rename"
         pendingLabel="Renaming…"
+        previewLabel="Slug"
       />
       <DeleteProjectDialog
         open={activeDialog === "delete"}
         projectName={targetProject?.name ?? ""}
         isSubmitting={isSubmitting}
+        error={error}
         onOpenChange={handleOpenChange}
         onSubmit={submit}
       />
@@ -73,10 +83,13 @@ interface ProjectNameDialogProps {
   description: string;
   submitLabel: string;
   pendingLabel: string;
+  previewLabel: string;
+  previewSuffix?: string;
   name: string;
   slug: string;
   isNameValid: boolean;
   isSubmitting: boolean;
+  error: string | null;
   onNameChange: (name: string) => void;
   onOpenChange: (open: boolean) => void;
   onSubmit: () => void;
@@ -88,10 +101,13 @@ function ProjectNameDialog({
   description,
   submitLabel,
   pendingLabel,
+  previewLabel,
+  previewSuffix = "",
   name,
   slug,
   isNameValid,
   isSubmitting,
+  error,
   onNameChange,
   onOpenChange,
   onSubmit,
@@ -148,7 +164,14 @@ function ProjectNameDialog({
           readOnly={isSubmitting}
           aria-describedby={slugId}
         />
-        <SlugPreview id={slugId} name={name} slug={slug} />
+        <SlugPreview
+          id={slugId}
+          label={previewLabel}
+          name={name}
+          slug={slug}
+          suffix={previewSuffix}
+        />
+        <RequestError message={error} />
       </form>
     </EditorDialog>
   );
@@ -156,18 +179,26 @@ function ProjectNameDialog({
 
 function SlugPreview({
   id,
+  label,
   name,
   slug,
+  suffix,
 }: {
   id: string;
+  label: string;
   name: string;
   slug: string;
+  suffix: string;
 }) {
   let content;
   if (slug) {
     content = (
       <>
-        Slug: <span className="font-mono text-foreground">{slug}</span>
+        {label}:{" "}
+        <span className="font-mono text-foreground">
+          {slug}
+          {suffix}
+        </span>
       </>
     );
   } else if (name.trim()) {
@@ -187,10 +218,21 @@ function SlugPreview({
   );
 }
 
+// Failed request message, shown inside the dialog that sent it.
+function RequestError({ message }: { message: string | null }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className="text-sm text-destructive">
+      {message}
+    </p>
+  );
+}
+
 interface DeleteProjectDialogProps {
   open: boolean;
   projectName: string;
   isSubmitting: boolean;
+  error: string | null;
   onOpenChange: (open: boolean) => void;
   onSubmit: () => void;
 }
@@ -199,6 +241,7 @@ function DeleteProjectDialog({
   open,
   projectName,
   isSubmitting,
+  error,
   onOpenChange,
   onSubmit,
 }: DeleteProjectDialogProps) {
@@ -235,6 +278,7 @@ function DeleteProjectDialog({
         project and everything in it will be permanently deleted. This cannot
         be undone.
       </p>
+      <RequestError message={error} />
     </EditorDialog>
   );
 }

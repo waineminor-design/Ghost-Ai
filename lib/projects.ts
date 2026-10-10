@@ -16,3 +16,13 @@ export function toProjectSlug(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
+
+export const DEFAULT_PROJECT_NAME = "Untitled Project";
+export const PROJECT_NAME_MAX_LENGTH = 100;
+
+// The signed-in user's projects, as loaded by the editor layout.
+export interface EditorProjects {
+  currentUserId: string;
+  owned: Project[];
+  shared: Project[];
+}

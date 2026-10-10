@@ -1,16 +1,25 @@
-import { Folder, FolderOpen, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import { Suspense, use } from "react";
+import {
+  Folder,
+  FolderOpen,
+  LoaderCircle,
+  Pencil,
+  Plus,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Project } from "@/lib/projects";
+import type { EditorProjects, Project } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 
 interface ProjectSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  projects: Project[];
-  currentUserId: string;
+  projectsPromise: Promise<EditorProjects>;
   onNewProject: () => void;
   onRenameProject: (project: Project) => void;
   onDeleteProject: (project: Project) => void;
@@ -21,16 +30,12 @@ interface ProjectSidebarProps {
 export function ProjectSidebar({
   isOpen,
   onClose,
-  projects,
-  currentUserId,
+  projectsPromise,
   onNewProject,
   onRenameProject,
   onDeleteProject,
 }: ProjectSidebarProps) {
-  const ownedProjects = projects.filter((p) => p.ownerId === currentUserId);
-  const sharedProjects = projects.filter((p) => p.ownerId !== currentUserId);
-
-  const listProps = { currentUserId, onRenameProject, onDeleteProject };
+  const listProps = { projectsPromise, onRenameProject, onDeleteProject };
 
   return (
     <>
@@ -69,20 +74,24 @@ export function ProjectSidebar({
             <TabsTrigger value="shared">Shared</TabsTrigger>
           </TabsList>
           <TabsContent value="my-projects" className="min-h-0 overflow-y-auto">
-            <ProjectList
-              {...listProps}
-              projects={ownedProjects}
-              emptyIcon={FolderOpen}
-              emptyMessage="No projects yet"
-            />
+            <Suspense fallback={<ProjectListLoading />}>
+              <ProjectList
+                {...listProps}
+                group="owned"
+                emptyIcon={FolderOpen}
+                emptyMessage="No projects yet"
+              />
+            </Suspense>
           </TabsContent>
           <TabsContent value="shared" className="min-h-0 overflow-y-auto">
-            <ProjectList
-              {...listProps}
-              projects={sharedProjects}
-              emptyIcon={Users}
-              emptyMessage="No shared projects"
-            />
+            <Suspense fallback={<ProjectListLoading />}>
+              <ProjectList
+                {...listProps}
+                group="shared"
+                emptyIcon={Users}
+                emptyMessage="No shared projects"
+              />
+            </Suspense>
           </TabsContent>
         </Tabs>
 
@@ -98,8 +107,8 @@ export function ProjectSidebar({
 }
 
 interface ProjectListProps {
-  projects: Project[];
-  currentUserId: string;
+  projectsPromise: Promise<EditorProjects>;
+  group: "owned" | "shared";
   emptyIcon: LucideIcon;
   emptyMessage: string;
   onRenameProject: (project: Project) => void;
@@ -107,13 +116,15 @@ interface ProjectListProps {
 }
 
 function ProjectList({
-  projects,
-  currentUserId,
+  projectsPromise,
+  group,
   emptyIcon,
   emptyMessage,
   onRenameProject,
   onDeleteProject,
 }: ProjectListProps) {
+  const { currentUserId, [group]: projects } = use(projectsPromise);
+
   if (projects.length === 0) {
     return <EmptyState icon={emptyIcon} message={emptyMessage} />;
   }
@@ -154,6 +165,15 @@ function ProjectList({
         </li>
       ))}
     </ul>
+  );
+}
+
+function ProjectListLoading() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
+      <LoaderCircle className="size-5 animate-spin" />
+      <p className="text-sm">Loading projects…</p>
+    </div>
   );
 }
 
