@@ -5,7 +5,7 @@ change.
 
 ## Current Phase
 
-- Feature 04 complete; Feature 05: TBD
+- Feature 05 complete; Feature 06: TBD
 
 ## Current Goal
 
@@ -189,15 +189,66 @@ change.
     clock (Clerk "iat in the future"); fixed by a Windows time
     sync plus a fresh browser session.
 
+- 05 Prisma (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/05-PRISMA.md`):
+  - Installed `@prisma/client` + `@prisma/adapter-pg` 7.10.0,
+    `pg`, `dotenv`; dev: `prisma` 7.10.0 (pinned — npm's
+    `latest` tag is `8.0.0-rc.22`, whose deps don't resolve
+    and which wouldn't match the 7.10 client), `tsx`,
+    `@types/pg`. `postinstall` runs `prisma generate`.
+  - `prisma init` was not run: in 7.10 it writes a `.env`
+    with a placeholder `DATABASE_URL` whenever `.env` is
+    missing (only `.env.local` exists). Its output was
+    reproduced by hand from the CLI's own templates, so no
+    `.env` file was created.
+  - `prisma.config.ts` — loads `.env.local` via dotenv;
+    `schema: "prisma"` (multi-file), migrations in
+    `prisma/migrations`; datasource url from
+    `process.env["DATABASE_URL"]` (not `env()`, which throws,
+    so `prisma generate` / `postinstall` work without it).
+  - `prisma/schema.prisma` — `prisma-client` generator,
+    output `app/generated/prisma` (git-ignored); postgresql
+    datasource (url lives in the config in Prisma 7).
+  - `prisma/models/project.prisma` — `ProjectStatus` enum
+    (`DRAFT` | `ARCHIVED`) and `Project` (cuid id, ownerId,
+    name, description?, status default `DRAFT`,
+    canvasJsonPath?, createdAt/updatedAt; indexes on ownerId
+    and createdAt). `collaborators` back-relation field is
+    the only addition (Prisma requires it).
+  - `prisma/models/project-collaborator.prisma` —
+    `ProjectCollaborator` (cuid id, projectId → Project with
+    `onDelete: Cascade`, email, createdAt; unique
+    (projectId, email); index on email).
+  - `lib/prisma.ts` — exports `prisma`, one `PrismaClient`
+    over `PrismaPg({ connectionString: DATABASE_URL })`,
+    cached on `globalThis` outside production.
+  - Migration `20261010225718_init` created and applied to
+    the remote Prisma Postgres database.
+  - Verified: `prisma validate`, `prisma migrate status`
+    ("up to date"); a tsx script through `lib/prisma.ts`
+    counted 0 rows in both tables, listed all 6 expected
+    indexes, confirmed the FK is `ON DELETE CASCADE`, and
+    that repeated imports return the same instance. `tsc`,
+    `eslint`, `npm run build` pass. No `.env*` file was
+    read or edited.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 05 (TBD)
+- Feature 06 (TBD)
 
 ## Open Questions
+
+- `pg` logs a security warning on connect: the
+  `DATABASE_URL` uses `sslmode=require` (or `prefer` /
+  `verify-ca`), which pg 8 treats as `verify-full` but pg 9
+  will downgrade to libpq semantics. Owner can set
+  `sslmode=verify-full` in `.env.local` (and on Vercel) to
+  keep today's behavior and silence it. Agents can't edit
+  that file.
 
 - Project dialogs are UI only: create/rename/delete close
   after a simulated delay and do not change the mock list.
@@ -235,6 +286,11 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Prisma 7 with a driver adapter (`@prisma/adapter-pg`), no
+  Accelerate. Import the client and model types from
+  `@/app/generated/prisma/client`; app code uses the
+  `prisma` instance from `@/lib/prisma`.
 
 - Project dialog state lives in `EditorShell` (via
   `useProjectDialogs`), not in each page, so the sidebar and

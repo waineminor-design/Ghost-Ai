@@ -41,6 +41,11 @@ paths below are relative to it.
   singleton, Liveblocks and Blob helpers.
 - `prisma/` — Prisma schema, one file per model under
   `prisma/models/`, and migrations.
+  `prisma.config.ts` (repo root) points the CLI at it and
+  loads `DATABASE_URL` from `.env.local`.
+- `app/generated/prisma/` — generated Prisma client
+  (git-ignored, rebuilt by `postinstall`). Not edited by
+  hand.
 - `proxy.ts` — Clerk route protection. This is the Next.js
   16 name for middleware; do not create `middleware.ts`.
 
