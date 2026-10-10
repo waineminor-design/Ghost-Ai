@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local debugging notes (may contain pasted errors or tokens)
+/CONTEXT/current-issues.md
+
+# personal Claude Code overrides
+.claude/settings.local.json

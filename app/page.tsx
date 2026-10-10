@@ -1,10 +1,15 @@
-import { Button } from "@/components/ui/button";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 
-export default function Home() {
-  return (
-    <div className="flex h-screen items-center justify-center">
-      <p>Ghost AI</p>
-      <Button>Click me</Button>
-    </div>
-  );
+// Pure redirect on the session, so there is no static shell to prerender.
+export const instant = false;
+
+export default async function Home() {
+  const { userId, redirectToSignIn } = await auth();
+
+  if (!userId) {
+    return redirectToSignIn();
+  }
+
+  redirect("/editor");
 }
