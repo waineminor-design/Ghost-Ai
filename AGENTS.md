@@ -37,4 +37,10 @@ standards documented in the context files, update the
 relevant file before continuing.
 
 Never read, print, or commit `.env*` files — they hold
-API keys and are git-ignored.
+API keys and are git-ignored. This includes indirect
+reads: do not run recursive searches or dumps over the
+repo (e.g. `grep -r`, `findstr /s`, `cat *`) that would
+include `.env*` files; use the Grep tool or `rg`, which
+respect the deny rules and `.gitignore`. The deny rules in
+`.claude/settings.json` block direct reads and edits but
+cannot catch every shell command.

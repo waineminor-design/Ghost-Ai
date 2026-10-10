@@ -27,7 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       appearance={clerkAppearance}
       signInFallbackRedirectUrl="/editor"
       signUpFallbackRedirectUrl="/editor"
-      afterSignOutUrl={process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL}
+      afterSignOutUrl={process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL ?? "/sign-in"}
     >
       <html
         lang="en"

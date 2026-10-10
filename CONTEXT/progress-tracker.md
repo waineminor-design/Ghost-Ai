@@ -284,7 +284,12 @@ change.
   moved to `_templates/` outside the repo (not project
   context, not committed).
 - `.claude/settings.json` (committed) denies agent reads and
-  edits of `.env*` files so API keys never enter a chat.
+  edits of `.env*` files and shell commands that name them.
+  It does not stop a recursive shell search that omits the
+  filename (CodeRabbit PR #1); `AGENTS.md` tells agents not
+  to run those. Full enforcement would need Claude Code's
+  Bash sandbox (`sandbox.enabled`), not turned on because it
+  changes how npm/git commands run.
 - Work happens on the `development` branch; merge to `main`
   via pull request after CodeRabbit review.
 - Dev server runs on port 3001 on this machine (3000 is used
