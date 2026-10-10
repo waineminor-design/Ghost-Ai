@@ -331,6 +331,19 @@ change.
     real projects in the sidebar, create → `/editor/<id>`
     (a not-found page until the workspace page exists),
     rename/delete updating the sidebar, the in-dialog error.
+  - Browser-verified by the owner (2026-10-10): empty
+    sidebar on a fresh database; create shows the
+    `<slug>-xxxxxx` room id preview, saves, and navigates to
+    `/editor/<slug>-<suffix>` (404 as expected); the project
+    appears in My Projects; rename and delete update the
+    sidebar. The in-dialog error state was not exercised.
+  - Live API check (signed out, `next start`): GET/POST
+    `/api/projects` and PATCH/DELETE `/api/projects/:id` all
+    return 401 JSON.
+  - Note: `pg` warns that `sslmode=require` will change
+    meaning in pg v9; the owner can set
+    `sslmode=verify-full` in `DATABASE_URL` (same behavior
+    today) to silence it.
 
 ## In Progress
 
