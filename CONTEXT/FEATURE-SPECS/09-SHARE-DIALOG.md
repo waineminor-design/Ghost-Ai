@@ -36,7 +36,7 @@ Every route checks sign-in itself (`/api` is passed through by `proxy.ts`) and r
     - 409 when the email is already a collaborator
     - 201 with the new collaborator on success
 - `DELETE /api/projects/[projectId]/collaborators/[collaboratorId]` — owner only; 204 on success
-- non-owners get 403 for invite/remove; users with no access get 404; unknown project 404
+- collaborators get 403 for invite/remove; signed-in users with no access to the project get 404 (do not reveal that it exists); an unknown project id gets 404
 - reuse `lib/project-access.ts` and `lib/api-response.ts`; keep queries in `lib/project-data.ts`
 
 ### State

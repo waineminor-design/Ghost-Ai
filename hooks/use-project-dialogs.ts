@@ -124,7 +124,10 @@ export function useProjectDialogs(): ProjectDialogs {
         return;
       }
 
-      if (!targetProject) return;
+      if (!targetProject) {
+        setError("No project selected. Close the dialog and try again.");
+        return;
+      }
       const projectPath = `/editor/${encodeURIComponent(targetProject.id)}`;
       const projectUrl = `/api/projects/${encodeURIComponent(targetProject.id)}`;
 

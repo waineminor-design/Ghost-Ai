@@ -111,14 +111,19 @@ export async function getProjectOwnerId(
   return project?.ownerId ?? null;
 }
 
-// Null when the project no longer exists.
+// Ownership is part of the write filter, so these helpers never modify a
+// project the caller does not own. Routes still call getProjectOwnerId
+// first to tell 403 from 404.
+
+// Null when the project does not exist or is not owned by `ownerId`.
 export async function renameProject(
   projectId: string,
+  ownerId: string,
   name: string,
 ): Promise<ProjectRecord | null> {
   try {
     return await prisma.project.update({
-      where: { id: projectId },
+      where: { id: projectId, ownerId },
       data: { name },
       select: projectSelect,
     });
@@ -129,10 +134,13 @@ export async function renameProject(
 }
 
 // Collaborators are removed by the database cascade. Returns false when
-// the project no longer exists.
-export async function deleteProject(projectId: string): Promise<boolean> {
+// the project does not exist or is not owned by `ownerId`.
+export async function deleteProject(
+  projectId: string,
+  ownerId: string,
+): Promise<boolean> {
   try {
-    await prisma.project.delete({ where: { id: projectId } });
+    await prisma.project.delete({ where: { id: projectId, ownerId } });
     return true;
   } catch (error) {
     if (isPrismaError(error, "P2025")) return false;

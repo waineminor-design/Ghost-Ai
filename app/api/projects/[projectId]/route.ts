@@ -47,7 +47,7 @@ export async function PATCH(
   const denied = await checkOwner(projectId, userId);
   if (denied) return denied;
 
-  const project = await renameProject(projectId, name);
+  const project = await renameProject(projectId, userId, name);
   if (!project) return jsonError("Project not found", 404);
   return Response.json(project);
 }
@@ -64,7 +64,7 @@ export async function DELETE(
   const denied = await checkOwner(projectId, userId);
   if (denied) return denied;
 
-  const deleted = await deleteProject(projectId);
+  const deleted = await deleteProject(projectId, userId);
   if (!deleted) return jsonError("Project not found", 404);
   return new Response(null, { status: 204 });
 }
