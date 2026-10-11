@@ -44,3 +44,9 @@ include `.env*` files; use the Grep tool or `rg`, which
 respect the deny rules and `.gitignore`. The deny rules in
 `.claude/settings.json` block direct reads and edits but
 cannot catch every shell command.
+
+<!-- TRIGGER.DEV SKILLS START -->
+## Trigger.dev agent skills
+
+This project has Trigger.dev agent skills installed in `.agents/skills/`. Before writing or changing Trigger.dev code (background tasks, scheduled tasks, realtime, or chat.agent AI agents), load the most relevant skill: `trigger-realtime-and-frontend`, `trigger-authoring-tasks`.
+<!-- TRIGGER.DEV SKILLS END -->

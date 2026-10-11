@@ -5,17 +5,23 @@ change.
 
 ## Current Phase
 
-- Feature 22 (Trigger.dev Setup) built; `tsc`, `eslint`,
-  `npm run build` and an offline bundle of the tasks pass.
-  Not yet run against the owner's Trigger.dev project
-  (needs the CLI login).
+- Feature 23 (Design Agent API) built; migration applied,
+  `tsc`, `eslint`, `npm run build` pass. Signed-in checks
+  and a real run in the Trigger.dev dashboard still need
+  the owner's browser and `npm run trigger:dev`.
+- **Owner: restart `npm run dev`** (stop it with Ctrl+C,
+  start it again). The `TaskRun` migration regenerated the
+  Prisma client, and the running dev server still holds the
+  old one, so the new routes fail until it restarts.
 
 ## Current Goal
 
-- Owner runs `npm run trigger:dev`, logs in, and checks
-  that `design-agent` and `spec-generator` show in the
-  Trigger.dev dashboard; plus the still-pending browser
-  checks of features 18-21
+- Owner restarts `npm run dev`, runs `npm run trigger:dev`
+  (logs in on first run), and checks feature 23 signed in:
+  starting a design run returns 202 with a run id that shows
+  in the Trigger.dev dashboard, and the token route returns
+  a token for it; plus the still-pending checks of features
+  18-22
 
 ## Completed
 
@@ -1436,6 +1442,55 @@ change.
     `npm run trigger:dev` connecting and both tasks showing
     in the dashboard.
 
+- 23 Design Agent API (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/23-DESIGN-AGENT-API.md`):
+  - `prisma/models/task-run.prisma`: `TaskRun` (`id`,
+    `runId` unique and nullable, `projectId` relation with
+    cascade delete, `userId`, `kind` enum `TaskRunKind`
+    `DESIGN` | `SPEC`, `createdAt`), indexed on `projectId`;
+    `Project.taskRuns` back-relation. Migration
+    `20261011082447_add_task_run` created and applied to the
+    dev database (`prisma migrate status`: up to date).
+  - `lib/task-run-data.ts` (`server-only`): `createTaskRun`,
+    `setTaskRunRunId`, `deleteTaskRun`, `findTaskRunByRunId`.
+  - `app/api/ai/design/route.ts` (`POST`): signed out -> 401;
+    body must be a JSON object with a non-empty string
+    `projectId` and a string `prompt` that is 1-2000
+    characters after trimming -> 400 otherwise; not owner or
+    collaborator (or unknown project) -> 404. Then creates the
+    `TaskRun` row (`DESIGN`, `runId` null), triggers
+    `design-agent` with `{ projectId, prompt, userId }`
+    (type-only import of the task) and the row id as
+    idempotency key, stores the run id and returns `202
+    { runId }`. A failed trigger deletes the row and returns
+    `502` JSON.
+  - `app/api/ai/runs/[runId]/token/route.ts` (`POST`): signed
+    out -> 401; no `TaskRun` with that run id, or the user
+    can't open its project -> 404; otherwise `{ token }` from
+    `auth.createPublicToken` with `read.runs: [runId]` only
+    and `expirationTime: "1h"`. The secret key is never
+    returned.
+  - `CONTEXT/architecture.md` updated (routes, `TaskRun` in
+    the storage model, run-token access rule).
+  - Verified: `tsc`, `eslint`, `npm run build` pass (both
+    routes listed). On the running dev server, signed-out
+    `POST`s to both routes return 401 JSON. Scripted test (in
+    a scratch folder, not added to the project) ran the real
+    route files with fake Clerk identity, data module and
+    Trigger.dev SDK: 27 checks passed (401s; 400 for invalid
+    JSON, array body, missing/empty `projectId`, non-string,
+    missing, blank and 2001-character prompt, with no row
+    created; 404 without access; 202 with the run id, prompt
+    trimmed, 2000 characters accepted, exact payload, row id
+    as global idempotency key, order create -> trigger ->
+    store; failed trigger -> row deleted and 502; token 404
+    for unknown run, non-member and empty id; token scoped
+    to exactly that one run, 1 hour).
+  - Not verified (needs a signed-in browser, the owner's
+    `TRIGGER_SECRET_KEY` and `npm run trigger:dev`): a real
+    202 whose run appears in the Trigger.dev dashboard, and
+    a real token for it.
+
 ## In Progress
 
 - None.
@@ -1445,6 +1500,18 @@ change.
 - AI design generation (23–26)
 
 ## Open Questions
+
+- Idempotency of `POST /api/ai/design` (feature 23): each
+  request creates a new `TaskRun` row, and the row id is the
+  idempotency key, as the spec says. That stops the SDK's own
+  retries of the trigger call from starting a second run, but
+  a client that re-sends the whole request gets a new row and
+  a second run. Making re-sent requests safe would need a
+  client-supplied request id (not in the spec). Say if it
+  should be added.
+- Token route failure (feature 23): the spec doesn't say what
+  to return when Trigger.dev can't create the token; it
+  returns `502` JSON, like a failed trigger.
 
 - Canvas snapshots when a project is deleted (feature 21):
   deleting a project removes its row but not
@@ -1512,6 +1579,17 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Run tokens go to any owner or collaborator of the run's
+  project, not only the user who started it (feature 23
+  spec). `architecture.md` said "scoped to the user who
+  started the run"; it now matches the spec. `TaskRun.userId`
+  still records who started it.
+- The design run's idempotency key is the `TaskRun` row id
+  made with `idempotencyKeys.create(id, { scope: "global" })`.
+  Outside a task a raw string key gets the same hash, but the
+  explicit scope doesn't depend on that (Trigger.dev skill's
+  "raw key isn't global" warning).
 
 - No `build.conditions: ["react-server"]` in
   `trigger.config.ts` to make `server-only` importable: the

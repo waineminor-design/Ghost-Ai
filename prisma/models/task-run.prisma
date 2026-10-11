@@ -1,0 +1,21 @@
+enum TaskRunKind {
+  DESIGN
+  SPEC
+}
+
+// One Trigger.dev run started from the app: who started it, for which
+// project. The row is created before the task is triggered, so `runId`
+// stays null until Trigger.dev returns it.
+model TaskRun {
+  id        String      @id @default(cuid())
+  // Trigger.dev run id.
+  runId     String?     @unique
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Clerk user id of who started the run.
+  userId    String
+  kind      TaskRunKind
+  createdAt DateTime    @default(now())
+
+  @@index([projectId])
+}

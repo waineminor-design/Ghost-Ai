@@ -27,7 +27,10 @@ paths below are relative to it.
 - `app/api/` — route handlers. Validate input, enforce auth
   and ownership, read/write metadata, issue Liveblocks
   tokens, and trigger background tasks. Never run long AI
-  work.
+  work. `POST /api/ai/design` starts a `design-agent` run
+  (records a `TaskRun` row, then triggers, then stores the
+  run id); `POST /api/ai/runs/[runId]/token` returns a
+  Trigger.dev public token that can read only that run.
 - `trigger/` — Trigger.dev task definitions (AI design
   generation, spec generation). The only place long-running
   AI work runs. One task per file, each a named export with
@@ -83,7 +86,8 @@ paths below are relative to it.
   singleton, Liveblocks and Blob helpers. Database queries
   live in `server-only` data modules (e.g.
   `lib/project-data.ts`) that route handlers and server
-  components both call. `lib/project-access.ts` resolves
+  components both call. `lib/task-run-data.ts` holds the
+  `TaskRun` queries. `lib/project-access.ts` resolves
   the signed-in identity and whether it may open a project
   (owner or collaborator). `lib/user-profiles.ts`
   (`server-only`) looks up Clerk profiles (name, avatar) for
@@ -173,6 +177,13 @@ Hybrid storage. The database stays lean.
   - `ProjectCollaborator`: project relation (cascade
     delete), collaborator email, timestamp. Unique on
     (project, email); indexed for lookups.
+  - `TaskRun`: one Trigger.dev run started from the app —
+    Trigger.dev run id (unique; null until the task is
+    triggered), project relation (cascade delete), Clerk id
+    of who started it, kind (`DESIGN` | `SPEC`), timestamp.
+    Indexed on projectId. The row is created before the
+    trigger and its id is the run's idempotency key, so no
+    run exists without a row; a failed trigger deletes it.
 - **Vercel Blob**: large artifacts — canvas snapshots
   (JSON) and generated specifications (Markdown). The
   database stores only the reference/URL. The store is
@@ -219,8 +230,14 @@ Hybrid storage. The database stays lean.
   exactly the requested room (= project id), never a
   wildcard pattern. Liveblocks user id = Clerk user id;
   user info = name, avatar, color.
-- Background task status/tokens are scoped to the user who
-  started the run.
+- Background task runs are followed with a Trigger.dev
+  public access token that reads exactly one run and
+  expires after 1 hour. `POST /api/ai/runs/[runId]/token`
+  issues it only when the run has a `TaskRun` row and the
+  signed-in user is the owner or a collaborator of its
+  project (feature 23); anyone else gets 404. The
+  Trigger.dev secret key (`TRIGGER_SECRET_KEY`) stays on
+  the server.
 
 ## Invariants
 
