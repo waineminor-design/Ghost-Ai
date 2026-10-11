@@ -30,7 +30,25 @@ paths below are relative to it.
   work.
 - `trigger/` — Trigger.dev task definitions (AI design
   generation, spec generation). The only place long-running
-  AI work runs.
+  AI work runs. One task per file, each a named export with
+  a typed payload: `design-agent` (`trigger/design-agent.ts`,
+  `{ projectId, prompt, userId }`) and `spec-generator`
+  (`trigger/spec-generator.ts`, `{ projectId, userId }`).
+  Both are placeholders that log and return their input.
+  App code triggers them by id with a type-only import
+  (`tasks.trigger<typeof designAgent>("design-agent", ...)`),
+  never by importing the task itself.
+- `trigger.config.ts` (repo root) — Trigger.dev config:
+  project ref from `TRIGGER_PROJECT_REF`, Node runtime,
+  tasks in `./trigger`, max duration 3600 s, retries on by
+  default (3 attempts, exponential backoff, also in dev).
+  Its Prisma build extension (`modern` mode, for Prisma 7's
+  `prisma-client` generator) keeps `@prisma/client`
+  external; the generated client in `app/generated/prisma`
+  is bundled like any other source. The CLI's bundler
+  stubs `server-only`, so tasks can import the `lib/` data
+  and storage modules. `.trigger/` (the CLI's local build
+  state) is git-ignored.
 - `components/ui/` — generated shadcn/ui components. Not
   edited by hand.
 - `components/editor/`, `components/canvas/` and other
@@ -115,6 +133,32 @@ paths below are relative to it.
   `/api` routes are public in `proxy.ts` (the middleware
   still runs so `auth()` works); every route handler checks
   `auth()` itself and returns 401 JSON.
+
+## Local Development
+
+Local development needs two terminals, both in `ghost-ai/`:
+
+1. `npm run dev` — the Next.js app.
+2. `npm run trigger:dev` — the Trigger.dev dev worker
+   (`trigger.dev dev`). It registers the tasks with the
+   Trigger.dev project and runs them on this machine. The
+   first run asks the CLI to log in to Trigger.dev.
+
+The worker sees the same variables as the app: the CLI
+loads `.env`, `.env.development`, `.env.local` and
+`.env.development.local` from the project folder by
+default, so `.env.local` needs no flag. If two of these
+files set the same key, the CLI keeps the first one
+(`.env`), while Next.js lets `.env.local` win; keep each
+key in `.env.local` only. `TRIGGER_SECRET_KEY` is used by
+the app to trigger tasks; the dev worker authenticates
+with the CLI login instead.
+
+Production: deployed tasks don't read `.env.local`. Their
+environment variables (`DATABASE_URL`, Blob, Liveblocks and
+AI keys) are set in the Trigger.dev dashboard for the
+production environment as part of the deploy step, and the
+app's `TRIGGER_SECRET_KEY` on Vercel is the production key.
 
 ## Storage Model
 

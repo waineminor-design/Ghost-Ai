@@ -5,16 +5,17 @@ change.
 
 ## Current Phase
 
-- Feature 21 (Canvas Autosave) built; `tsc`, `eslint`,
-  `npm run build`, signed-out API checks and scripted
-  hook/validation tests pass. Not yet checked in the
-  browser or against the real Blob store.
+- Feature 22 (Trigger.dev Setup) built; `tsc`, `eslint`,
+  `npm run build` and an offline bundle of the tasks pass.
+  Not yet run against the owner's Trigger.dev project
+  (needs the CLI login).
 
 ## Current Goal
 
-- Owner's browser check of feature 21 (signed in, with the
-  Blob token), plus the still-pending checks of features
-  18-20, then Trigger.dev setup
+- Owner runs `npm run trigger:dev`, logs in, and checks
+  that `design-agent` and `spec-generator` show in the
+  Trigger.dev dashboard; plus the still-pending browser
+  checks of features 18-21
 
 ## Completed
 
@@ -1382,13 +1383,64 @@ change.
     overwritten, a non-member's 404, and restoring into an
     empty room.
 
+- 22 Trigger.dev Setup (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/22-TRIGGER-SETUP.md`):
+  - Installed `@trigger.dev/sdk` 4.7.3, and as dev
+    dependencies `@trigger.dev/build` 4.7.3 and the
+    `trigger.dev` CLI 4.7.3 (not named in the spec; the
+    `trigger:dev` script needs the CLI binary, and the docs
+    say to keep CLI, SDK and build on one version). No
+    Trigger.dev agent skill was installed, so the docs and
+    skills bundled in the SDK/CLI packages were used.
+  - `trigger.config.ts`: `project` from
+    `TRIGGER_PROJECT_REF`, `runtime: "node"`,
+    `dirs: ["./trigger"]`, `maxDuration: 3600`, retries
+    `{ maxAttempts: 3, factor: 2, minTimeoutInMs: 1000,
+    maxTimeoutInMs: 10000, randomize: true }` with
+    `enabledInDev: true` (the SDK default, set explicitly),
+    and `prismaExtension({ mode: "modern" })` — the mode the
+    SDK docs give for Prisma 7's `prisma-client` generator
+    with a driver adapter.
+  - `trigger/design-agent.ts` (`designAgent`, id
+    `design-agent`, payload `DesignAgentPayload`) and
+    `trigger/spec-generator.ts` (`specGenerator`, id
+    `spec-generator`, payload `SpecGeneratorPayload`): log
+    the payload with `logger.log` and return it.
+  - `package.json`: `"trigger:dev": "trigger.dev dev"`. The
+    installed CLI loads `.env`, `.env.development`,
+    `.env.local`, `.env.development.local` from the project
+    folder by default (checked in its source,
+    `utilities/dotEnv.js`), and reads `TRIGGER_PROJECT_REF`
+    from them as the project ref for `dev` and `deploy`, so
+    no `--env-file` flag is needed.
+  - `.gitignore`: `.trigger/`.
+  - `CONTEXT/architecture.md`: `trigger/` and
+    `trigger.config.ts` described; new "Local Development"
+    section (two terminals, env loading, production task
+    env vars set in the Trigger.dev dashboard).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. The
+    CLI's own `loadConfig` + `buildWorker` (run offline
+    from a scratch script with a dummy project ref; no
+    login, no env files) resolved the config as above and
+    bundled both tasks. A throwaway probe task (in
+    `trigger/` only for that run, then deleted) importing
+    `lib/prisma`, `lib/project-data` and
+    `lib/canvas-storage` bundled too: `server-only` was
+    stubbed by the CLI and `@prisma/client` kept external;
+    loading the bundled files with Node exported
+    `design-agent`, `spec-generator` and the probe. No
+    `.env*` file was read or edited.
+  - Not verified (needs the owner's Trigger.dev login):
+    `npm run trigger:dev` connecting and both tasks showing
+    in the dashboard.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Trigger.dev setup, then AI design generation (22–26)
+- AI design generation (23–26)
 
 ## Open Questions
 
@@ -1458,6 +1510,19 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- No `build.conditions: ["react-server"]` in
+  `trigger.config.ts` to make `server-only` importable: the
+  CLI's bundler already replaces `server-only` with a stub
+  (its built-in "polyshed" plugin), and a custom condition
+  would also be passed to Node at runtime and change how
+  every package resolves.
+- On Windows the dev CLI logs (debug level only) that it
+  could not symlink `@prisma/client` into its build folder
+  (`EPERM`; symlinks need Developer Mode). Harmless: the
+  build folder is inside the project (`.trigger/`), so Node
+  finds `@prisma/client` in the project's `node_modules`
+  (confirmed by loading the bundle).
 
 - Canvas snapshots are read and written only by the canvas
   route on the server (private Blob, token server-side);

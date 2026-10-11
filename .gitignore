@@ -48,3 +48,6 @@ next-env.d.ts
 
 # generated Prisma client
 /app/generated/
+
+# Trigger.dev local dev state
+.trigger/
