@@ -492,6 +492,13 @@ change.
     served a stale `lib/project-data.ts` ("findAccessibleProject
     is not a function") while `tsc` and `next build` passed.
     Fix: stop the dev server, delete `.next/`, restart.
+    Same after feature 15: new `@theme` color tokens in
+    `globals.css` were missing from the running dev server's CSS
+    (swatches empty, nodes black) though the production build had
+    them. After adding theme tokens, restart `next dev` (and clear
+    `.next/` if they still don't appear). Feature 15 browser-
+    verified after the restart: swatches show colors, picking blue
+    recolors the node and syncs to the collaborator.
 
 - 10 Liveblocks Setup (2026-10-10,
   spec: `CONTEXT/FEATURE-SPECS/10-LIVEBLOCKS-SETUP.md`):
