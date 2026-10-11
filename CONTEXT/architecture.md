@@ -40,7 +40,10 @@ paths below are relative to it.
   `components/canvas/canvas.tsx` is the React Flow canvas
   inside it.
 - `hooks/` — client hooks for dialog state, form state and
-  mutations.
+  mutations, and the canvas actions (`use-canvas-actions.ts`:
+  zoom, fit view, undo/redo through the Liveblocks room
+  history) shared by the control bar and the keyboard
+  shortcuts (`use-canvas-shortcuts.ts`).
 - `lib/` — shared utilities: `cn()`, Prisma client
   singleton, Liveblocks and Blob helpers. Database queries
   live in `server-only` data modules (e.g.

@@ -134,10 +134,6 @@
 .react-flow {
     --xy-background-color: var(--background);
     --xy-background-pattern-color: var(--input);
-    --xy-minimap-background-color: var(--card);
-    --xy-minimap-mask-background-color: color-mix(in oklch, var(--background) 60%, transparent);
-    --xy-minimap-mask-stroke-color: var(--border);
-    --xy-minimap-node-background-color: var(--accent);
     --xy-attribution-background-color: transparent;
     --xy-handle-background-color: var(--muted-foreground);
     --xy-resize-background-color: var(--primary);

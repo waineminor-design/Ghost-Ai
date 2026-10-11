@@ -123,16 +123,29 @@ app-specific wrappers in feature folders instead (e.g.
   `UserButton`.
 - Canvas: React Flow (`colorMode="dark"`) fills the
   workspace, with a dot
-  background and a bottom-right minimap
-  (`rounded-lg border border-border`). React Flow's colors
+  background and the canvas control bar (no minimap).
+  React Flow's colors
   come from its `--xy-*` variables, mapped to the tokens in
   the `.react-flow` block of `app/globals.css`; change them
   there, not in components. While the room connects the
   canvas area shows a centered spinner and "Connecting to
   room…"; a failed connection shows a centered
   `TriangleAlert` (`text-destructive`) and a short message.
-  The minimap is hidden below `sm` so it doesn't cover the
-  shape panel on phones.
+- Canvas control bar: the same pill as the shape panel
+  (`rounded-full`, `bg-card`, `border-border`, `shadow-lg`)
+  at the bottom-left of the canvas: zoom out, zoom in, fit
+  view, a thin divider, undo, redo (round icon buttons,
+  muted icon, `bg-accent` on hover). Each button has an
+  `aria-label` and a tooltip (shadcn `Tooltip`) naming it
+  and its shortcut. Undo/redo are dimmed (`opacity-50`)
+  when there is nothing to undo/redo but stay focusable, so
+  their tooltip still shows. Where the canvas is too narrow
+  for the bar and the shape panel side by side (below `md`)
+  the bar sits above the shape panel; while the project
+  sidebar is open (from `md`) it slides right of the
+  sidebar. Shortcuts: `+`/`=` zoom in, `-` zoom out,
+  Ctrl/Cmd+Z undo, Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z redo, all
+  ignored while typing in a text field.
 - Shape panel: a pill-shaped toolbar (`rounded-full`,
   `bg-card`, `border-border`) centered at the bottom of the
   canvas, one round icon button per shape (muted icon,

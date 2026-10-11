@@ -5,12 +5,13 @@ change.
 
 ## Current Phase
 
-- Feature 16 (Edge Behavior) complete; awaiting the owner's
-  browser check
+- Feature 17 (Canvas Ergonomics) complete; awaiting the
+  owner's browser check
 
 ## Current Goal
 
-- Feature 17 (Canvas Ergonomics)
+- Owner's browser check of feature 17, then feature 18
+  (Starter Templates)
 
 ## Completed
 
@@ -979,13 +980,95 @@ change.
     labels); delete and redraw them. The spec only changes
     new connections.
 
+- 17 Canvas Ergonomics (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/17-CANVAS-ERGONOMICS.md`):
+  - `hooks/use-canvas-actions.ts` — `useCanvasActions()`:
+    `zoomIn` / `zoomOut` / `fitView` (React Flow,
+    200 ms animation) and `undo` / `redo` from Liveblocks
+    (`useUndo` / `useRedo`, the room history). Memoized so
+    the shortcut listener isn't re-attached on every render.
+  - Room history checked in `@liveblocks/react-flow`'s
+    `applyNodeChanges`: it pauses history when a drag or
+    resize starts and resumes when it ends, so a whole move
+    or resize is one undo step. Adds, deletes (`onDelete` is
+    one mutation), labels and colors (`updateNodeData` →
+    one `replace` mutation) are one step each. Selection,
+    measured size and dragging flags use `setLocal`, which
+    never enters the history. Undo only reverses this user's
+    own changes (Liveblocks history is per client).
+  - `hooks/use-canvas-shortcuts.ts` — `useCanvasShortcuts()`
+    (called in `CanvasFlow`): one `keydown` listener on
+    `document`. `+` / `=` zoom in, `-` zoom out (only without
+    Ctrl/Cmd, so the browser's own Ctrl/Cmd +/- page zoom
+    still works), Ctrl/Cmd+Z undo, Ctrl/Cmd+Y and
+    Ctrl/Cmd+Shift+Z redo; any Alt combination is ignored
+    (AltGr reports Ctrl+Alt). Skipped when the event was
+    already handled or its target is an `input`, `textarea`,
+    `select` or contenteditable element (label editors,
+    dialogs, later the chat). Handled keys `preventDefault()`.
+  - `components/canvas/canvas-controls.tsx` —
+    `CanvasControls`: React Flow `Panel` at `bottom-left`,
+    same pill as the shape panel, `role="group"`
+    `aria-label="Canvas controls"`, `nokey` (Space /
+    Backspace on a focused button don't pan or delete).
+    Buttons: zoom out, zoom in, fit view (`Maximize`), a
+    divider, undo (`Undo2`), redo (`Redo2`). Each is a Base
+    UI `Button` rendered through a shadcn `TooltipTrigger`,
+    with `aria-label` and a tooltip "Undo (Ctrl+Z)" etc.
+    (`⌘` on Apple devices). Undo/redo are disabled from
+    `useCanUndo` / `useCanRedo` with `focusableWhenDisabled`:
+    `aria-disabled`, dimmed, clicks blocked, but still
+    hoverable (tooltip) and focus isn't dropped when the
+    last undo disables the button under it.
+  - Placement: below `md` the bar is lifted above the shape
+    panel (`-translate-y-[calc(3.5rem+2px)]`), since a 375 px
+    phone can't fit both on one row (side by side needs
+    ~734 px). While the project sidebar is open, from `md`
+    up the bar slides right of it (`translate-x-[18.5rem]`,
+    animated like the sidebar), and below 83rem (where the
+    shifted bar would reach the shape panel) it is also
+    lifted. The AI sidebar is on the right, so it never
+    covers the bar except on phones, where an open sidebar
+    covers nearly the whole canvas anyway (same for the
+    project sidebar and its scrim).
+  - `components/editor/project-sidebar-context.ts` —
+    `ProjectSidebarContext` + `useProjectSidebarVisibility()`
+    (`{ isOpen }`), provided by `EditorShell`, so the canvas
+    can read the sidebar state the navbar toggles (same
+    pattern as `AiSidebarContext`).
+  - Minimap removed: `MiniMap` from `canvas.tsx` and the four
+    `--xy-minimap-*` overrides from `app/globals.css`.
+  - Added shadcn `tooltip` via the CLI
+    (`components/ui/tooltip.tsx`, Base UI; no new
+    dependencies). Its `TooltipProvider` wraps only the
+    control bar (the CLI suggests the root layout; nothing
+    else uses tooltips yet).
+  - `CONTEXT/ui-context.md` (Canvas, new Canvas control bar
+    entry) and `CONTEXT/architecture.md` (`hooks/`) updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains the placement classes
+    (`max-md:-translate-y-[…]`, `max-[83rem]:-translate-y-[…]`,
+    `md:translate-x-[18.5rem]`), `hover:not-data-disabled:bg-accent`
+    and `data-disabled:opacity-50`; no app `--xy-minimap-*`
+    overrides remain (React Flow's own `base.css` still
+    defines its defaults). A server render of a control
+    button showed `aria-label`, and when disabled
+    `aria-disabled="true"` + `data-disabled` with no
+    `disabled` attribute (still focusable).
+  - Not verified (needs a browser signed in with Clerk; no
+    headless harness was run): the buttons and shortcuts
+    themselves, undo/redo of moves, adds, deletes, resizes,
+    labels and colors, shortcuts doing nothing while typing a
+    label, tooltips, and the bar's position with the project
+    sidebar open and on a phone.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 17 (Canvas Ergonomics)
+- Feature 18 (Starter Templates)
 
 ## Open Questions
 
@@ -1035,6 +1118,24 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Undo/redo use the Liveblocks room history (`useUndo` /
+  `useRedo`), never a local history. Why: the spec requires
+  it, and every canvas write already goes through
+  `useLiveblocksFlow`, which groups drags and resizes into
+  one history step. New canvas writes (templates, AI
+  output) should go through storage mutations too, so they
+  are undoable the same way.
+- The control bar and the keyboard shortcuts call the same
+  `useCanvasActions()`. Why: one place for zoom/fit
+  animation and undo/redo behavior, so a button and its
+  shortcut can't drift.
+- The project sidebar's open state reaches the canvas
+  through `ProjectSidebarContext`. Why: the spec says the
+  bar must not be covered by either sidebar; the project
+  sidebar floats over the canvas's left edge, so the bar
+  moves right while it is open, and the state lives in
+  `EditorShell` (the navbar toggles it).
 
 - Edge labels live in `data.label` (`CanvasEdgeData`), not
   React Flow's top-level `label`, and are edited with

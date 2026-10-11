@@ -4,7 +4,6 @@ import {
   Background,
   BackgroundVariant,
   ConnectionMode,
-  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -15,9 +14,11 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/base.css";
 
+import { CanvasControls } from "@/components/canvas/canvas-controls";
 import { LabeledEdge } from "@/components/canvas/labeled-edge";
 import { ShapeNode } from "@/components/canvas/shape-node";
 import { ShapePanel } from "@/components/canvas/shape-panel";
+import { useCanvasShortcuts } from "@/hooks/use-canvas-shortcuts";
 import { DEFAULT_NODE_COLOR } from "@/lib/canvas-colors";
 import {
   SHAPE_DRAG_MIME,
@@ -68,6 +69,7 @@ function CanvasFlow() {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, onDelete } =
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const { screenToFlowPosition } = useReactFlow<CanvasNode, CanvasEdge>();
+  useCanvasShortcuts();
   const containerRef = useRef<HTMLDivElement>(null);
   // Orders this client's own nodes; the random part keeps ids unique
   // across clients that add the same shape in the same millisecond.
@@ -150,7 +152,7 @@ function CanvasFlow() {
       >
         <Background variant={BackgroundVariant.Dots} />
         <ShapePanel onAddShape={addShapeAtViewportCenter} />
-        <MiniMap className="hidden overflow-hidden rounded-lg border border-border sm:block" />
+        <CanvasControls />
       </ReactFlow>
     </div>
   );
