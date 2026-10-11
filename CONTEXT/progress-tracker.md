@@ -5,23 +5,27 @@ change.
 
 ## Current Phase
 
-- Feature 23 (Design Agent API) built; migration applied,
-  `tsc`, `eslint`, `npm run build` pass. Signed-in checks
-  and a real run in the Trigger.dev dashboard still need
-  the owner's browser and `npm run trigger:dev`.
-- **Owner: restart `npm run dev`** (stop it with Ctrl+C,
-  start it again). The `TaskRun` migration regenerated the
-  Prisma client, and the running dev server still holds the
-  old one, so the new routes fail until it restarts.
+- Feature 24 (Design Agent Logic) built; `tsc`, `eslint`,
+  `npm run build` pass and the agent's logic passed offline
+  tests. A real run (Gemini + the live room) still needs the
+  owner's `npm run trigger:dev` and the Trigger.dev
+  dashboard.
+- **Owner: restart `npm run dev` and `npm run trigger:dev`**
+  (Ctrl+C, then start again) so both pick up the new
+  packages and code.
 
 ## Current Goal
 
-- Owner restarts `npm run dev`, runs `npm run trigger:dev`
-  (logs in on first run), and checks feature 23 signed in:
-  starting a design run returns 202 with a run id that shows
-  in the Trigger.dev dashboard, and the token route returns
-  a token for it; plus the still-pending checks of features
-  18-22
+- Owner runs feature 24's dashboard test: open a project in
+  the browser, copy its id from the address bar
+  (`/editor/<id>`), and in the Trigger.dev dashboard test
+  `design-agent` with
+  `{ "projectId": "<id>", "userId": "test", "prompt": "Design a real-time chat app with a websocket server, presence service, Redis pub/sub, a Postgres database and S3 for media" }`.
+  Expected: "Ghost AI" appears in the avatar stack while it
+  runs, the diagram appears on the canvas, the AI avatar
+  disappears after, and the run's output shows
+  `actionsApplied` and `summary`. Plus the still-pending
+  signed-in checks of features 18-23.
 
 ## Completed
 
@@ -1491,15 +1495,97 @@ change.
     202 whose run appears in the Trigger.dev dashboard, and
     a real token for it.
 
+- 24 Design Agent Logic (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/24-DESIGN-AGENT-LOGIC.md`):
+  - Installed `ai` 7.0.137 and `@ai-sdk/google` 4.0.93, and
+    `zod` 4.6.5 as a direct dependency (not named in the
+    spec; the tool schemas import it, and it was only there
+    as another package's dependency). Model:
+    `gemini-3.8-flash`, the installed provider docs' default
+    and listed with tool support, in the
+    `DESIGN_AGENT_MODEL` constant in
+    `trigger/design-agent.ts`.
+  - `trigger/design-agent.ts`: reads the canvas, sets the AI
+    presence, calls `generateText` with the tools (one step,
+    no `execute`), skips schema-invalid calls (the SDK
+    returns them flagged `invalid`, it does not throw),
+    applies the rest in one `mutateFlow()` call, records
+    status messages in run metadata, clears presence in
+    `finally`, returns `{ actionsApplied, summary }`
+    (summary = the model's text, if any, plus a count of
+    what changed and what was skipped).
+  - New `lib/` modules: `design-agent-canvas.ts` (read +
+    describe the room), `design-agent-tools.ts` (the 8 tools
+    with zod schemas; shapes and colors as enums from their
+    one definition), `design-agent-prompt.ts` (system
+    prompt), `design-agent-actions.ts` (validate + apply,
+    summary text), `design-agent-presence.ts` (AI presence).
+  - `lib/liveblocks.ts`: `getLiveblocks()` replaces the
+    `liveblocks` export and creates the client on first use
+    (the auth route now calls it); `AI_USER` added. Why: the
+    task file imports it, and the bundled task threw
+    "LIVEBLOCKS_SECRET_KEY is not set" when imported without
+    the key, which is how Trigger.dev indexes tasks (and
+    would break `trigger deploy`).
+  - `lib/canvas-shapes.ts`: `NODE_HANDLE_SIDES` /
+    `NodeHandleSide` (the 4 handle ids); the templates now
+    use it instead of their own copy of the type.
+  - `CONTEXT/architecture.md`: the agent's flow, presence,
+    the status metadata format, `getLiveblocks()`, the env
+    vars the worker needs.
+  - Env: the worker needs `GOOGLE_GENERATIVE_AI_API_KEY`,
+    `LIVEBLOCKS_SECRET_KEY` and `DATABASE_URL`. The installed
+    CLI loads them from `.env.local` (checked in feature 22
+    in its source); whether the three are actually in that
+    file wasn't checked (agents don't read it).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Scratch
+    tests (outside the project, no network, no keys): the
+    real tools run through `generateText` with the SDK's mock
+    model, then applied with the real `mutateFlow` to an
+    in-memory room — 36 checks: 8 tools sent with the shape
+    and color enums and the system prompt; one step; 3
+    schema-invalid / unknown-tool calls skipped without
+    throwing; 11 valid actions applied in one mutation (keys
+    resolved, also forward references; trimmed labels; shape
+    default sizes; canvas-style ids; edges `labeled` with
+    React Flow ids and default right/left handles;
+    deleteNode removes its edges); 8 invalid ones skipped
+    with reasons (duplicate key, too small, unknown
+    node/edge, self-edge, duplicate connection, empty
+    update). Canvas reader: parses the room JSON, drops
+    malformed nodes/edges, defaults sizes and old edge
+    labels, describes and centers correctly. The CLI's own
+    build bundled both tasks, and the bundled task now loads
+    without the Liveblocks key.
+  - Not verified (needs the owner's `npm run trigger:dev`,
+    keys and browser): a real Gemini run from the dashboard,
+    the diagram appearing live, the AI presence showing and
+    clearing.
+  - `npm audit` reports high-severity issues in `braces`,
+    `deepmerge-ts`, `mysql2` and `ws`; none were added by
+    this install (they were already in the tree via other
+    packages).
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- AI design generation (23–26)
+- AI design generation (25–26)
 
 ## Open Questions
+
+- Design agent on a project whose room was never opened
+  (feature 24): Liveblocks creates a room when someone first
+  joins it, so a run for a project nobody has opened yet
+  can't read the room and fails (after 3 attempts). The
+  spec's test opens the project first. Say if the agent
+  should create the room itself.
+- Design agent summary (feature 24): the spec only says the
+  task returns a `summary`. It is the model's own text, if
+  it wrote any, followed by a count of what changed and how
+  many actions were skipped.
 
 - Idempotency of `POST /api/ai/design` (feature 23): each
   request creates a new `TaskRun` row, and the row id is the
@@ -1579,6 +1665,31 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- The design agent writes through `mutateFlow()` from
+  `@liveblocks/react-flow/node`, not hand-built
+  `LiveObject`s. Why: it is the package's own server-side
+  writer and uses the same conversion as `useLiveblocksFlow`
+  (default `flow` key, default sync config), so AI nodes
+  sync and render exactly like browser ones; one call is one
+  `mutateStorage` mutation.
+- The agent validates the model's actions inside that
+  mutation, against the room as it is then, not the copy it
+  read before calling Gemini. Why: people may have deleted
+  or added nodes while the model was thinking.
+- `addNode` calls are applied first, then the rest in the
+  model's order. Why: the spec lets any call reference a
+  key from an `addNode` in the same response, including one
+  that comes later in the list. A key equal to an existing
+  node id is rejected so references are never ambiguous.
+- Run metadata carries the agent's status messages. Why:
+  the UI already gets a run-scoped token (feature 23), and
+  Trigger.dev realtime delivers metadata changes with the
+  run, so no extra storage or channel is needed.
+- The Liveblocks client is created on first use
+  (`getLiveblocks()`), never at import. Why: Trigger.dev
+  imports task files to index them, including at deploy
+  where the key may be missing.
 
 - Run tokens go to any owner or collaborator of the run's
   project, not only the user who started it (feature 23

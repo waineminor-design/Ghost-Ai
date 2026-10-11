@@ -37,10 +37,55 @@ paths below are relative to it.
   a typed payload: `design-agent` (`trigger/design-agent.ts`,
   `{ projectId, prompt, userId }`) and `spec-generator`
   (`trigger/spec-generator.ts`, `{ projectId, userId }`).
-  Both are placeholders that log and return their input.
-  App code triggers them by id with a type-only import
+  `spec-generator` is still a placeholder that logs and
+  returns its input. App code triggers them by id with a
+  type-only import
   (`tasks.trigger<typeof designAgent>("design-agent", ...)`),
   never by importing the task itself.
+- The design agent (`design-agent`, feature 24) reads the
+  room's nodes and edges with the Liveblocks Node client
+  (`lib/design-agent-canvas.ts`), sends Gemini a compact
+  description of them plus the prompt (model id in the
+  `DESIGN_AGENT_MODEL` constant in the task file; key
+  `GOOGLE_GENERATIVE_AI_API_KEY`), and gets back tool calls,
+  one per canvas action (`lib/design-agent-tools.ts`:
+  `addNode`, `updateNode`, `moveNode`, `resizeNode`,
+  `deleteNode`, `addEdge`, `updateEdge`, `deleteEdge`; the
+  system prompt is `lib/design-agent-prompt.ts`). The tools
+  have no `execute`: the task validates the calls against
+  the room as it is at apply time and applies the valid ones
+  in one `mutateFlow()` call (`@liveblocks/react-flow/node`,
+  the same storage format as the canvas's
+  `useLiveblocksFlow`), so the change syncs to everyone at
+  once (`lib/design-agent-actions.ts`). New nodes use the
+  `shape` node type and get canvas-style ids
+  (`<shape>-<time>-<n>-<random>`); new edges are `labeled`
+  edges with React Flow's connection id
+  (`xy-edge__<source><handle>-<target><handle>`), so a
+  connection can't be added twice. `addNode` takes a short
+  `key`; other calls in the same response can reference a
+  node by that key or by an existing id. Invalid actions
+  (unknown id/key, a key used twice or equal to an existing
+  id, unknown shape/color, size below the 60x40 minimum,
+  self-edges, duplicate connections, calls that don't match
+  the schema) are skipped, not fatal. Returns
+  `{ actionsApplied, summary }`.
+  - Presence: while it runs, the agent is in the room as
+    `AI_USER` (`lib/liveblocks.ts`: id `ghost-ai`, name
+    "Ghost AI") with `isThinking: true` and a cursor near
+    where it works (`lib/design-agent-presence.ts`). It is
+    set through the REST API with a 60 s TTL, refreshed
+    every 20 s, and cleared (TTL 2 s, the minimum) when the
+    run ends or fails.
+  - Status messages: run metadata, read with Trigger.dev
+    realtime through the run token. `status` is the latest
+    `{ step, message, at }` (types `DesignAgentStatus` /
+    `DesignAgentStep` in the task file; `at` is an ISO
+    time) and `statusLog` lists every one in order. Steps:
+    `started`, `thinking`, `applying` (message names the
+    number of changes), `done` (message is the summary),
+    `failed`. A retried attempt starts again at `started`;
+    the run's own status says whether it finally succeeded.
 - `trigger.config.ts` (repo root) — Trigger.dev config:
   project ref from `TRIGGER_PROJECT_REF`, Node runtime,
   tasks in `./trigger`, max duration 3600 s, retries on by
@@ -96,8 +141,11 @@ paths below are relative to it.
   share response types used by both server and client.
   `lib/api-client.ts` is the client helper for calling the
   JSON route handlers. `lib/liveblocks.ts` (`server-only`)
-  holds the cached Liveblocks Node client and
-  `getUserColor()` (the cursor color palette).
+  holds `getLiveblocks()` (the Liveblocks Node client,
+  created on first use and cached — never at import, so
+  Trigger.dev can import task files to index them without
+  the key), `getUserColor()` (the cursor color palette) and
+  `AI_USER` (the design agent's presence identity).
   `lib/canvas-types.ts` holds the canvas node/edge types
   (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`,
   `CanvasEdgeData`) and the edge type name
@@ -105,7 +153,8 @@ paths below are relative to it.
   storage, templates, AI generation and spec generation
   share. `lib/canvas-shapes.ts` is the one
   shape list (name, label, default size), the `shape` node
-  type name, and the drag-and-drop payload
+  type name, the handle ids (`NODE_HANDLE_SIDES`: top,
+  right, bottom, left), and the drag-and-drop payload
   (`application/ghost-shape`) with its parser.
   `lib/canvas-snapshot.ts` is the snapshot format
   (`{ version: 1, savedAt, nodes, edges }`), its validation
@@ -147,7 +196,9 @@ Local development needs two terminals, both in `ghost-ai/`:
    (`trigger dev` — the CLI's command is `trigger`, not
    `trigger.dev`). It registers the tasks with the
    Trigger.dev project and runs them on this machine. The
-   first run asks the CLI to log in to Trigger.dev.
+   first run asks the CLI to log in to Trigger.dev. The
+   tasks need `GOOGLE_GENERATIVE_AI_API_KEY`,
+   `LIVEBLOCKS_SECRET_KEY` and `DATABASE_URL`.
 
 The worker sees the same variables as the app: the CLI
 loads `.env`, `.env.development`, `.env.local` and

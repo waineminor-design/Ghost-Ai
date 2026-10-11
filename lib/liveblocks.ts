@@ -6,18 +6,17 @@ const globalForLiveblocks = globalThis as unknown as {
   liveblocks?: Liveblocks;
 };
 
-function createLiveblocksClient() {
-  const secret = process.env.LIVEBLOCKS_SECRET_KEY;
-  if (!secret) throw new Error("LIVEBLOCKS_SECRET_KEY is not set");
-  return new Liveblocks({ secret });
-}
-
-// One client per process; cached on globalThis in development so hot
-// reloads reuse it.
-export const liveblocks = globalForLiveblocks.liveblocks ?? createLiveblocksClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForLiveblocks.liveblocks = liveblocks;
+// One client per process, created on first use rather than on import:
+// Trigger.dev imports task files to index them (also at deploy, where the
+// key may not be set), and importing must not throw. Cached on globalThis
+// so hot reloads reuse it.
+export function getLiveblocks(): Liveblocks {
+  if (!globalForLiveblocks.liveblocks) {
+    const secret = process.env.LIVEBLOCKS_SECRET_KEY;
+    if (!secret) throw new Error("LIVEBLOCKS_SECRET_KEY is not set");
+    globalForLiveblocks.liveblocks = new Liveblocks({ secret });
+  }
+  return globalForLiveblocks.liveblocks;
 }
 
 // Cursor colors, readable on the dark canvas. The only place they are
@@ -32,6 +31,13 @@ const USER_COLORS = [
   "#a78bfa", // violet
   "#f472b6", // pink
 ] as const;
+
+// The design agent's identity in a room's presence (avatar stack and
+// cursor). Clerk user ids start with "user_", so the id can't clash.
+export const AI_USER = {
+  id: "ghost-ai",
+  info: { name: "Ghost AI", color: "#e879f9" }, // fuchsia
+} as const;
 
 // The same user id always maps to the same color (FNV-1a hash of the id).
 export function getUserColor(userId: string): string {

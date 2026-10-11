@@ -3,6 +3,7 @@ import {
   SHAPE_NODE_TYPE,
   getCanvasShape,
   type CanvasShape,
+  type NodeHandleSide,
 } from "@/lib/canvas-shapes";
 import {
   LABELED_EDGE_TYPE,
@@ -23,9 +24,6 @@ export type CanvasTemplate = {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
 };
-
-// Node handle ids are the side they sit on (see shape-node.tsx).
-type HandleSide = "top" | "right" | "bottom" | "left";
 
 // Templates read left to right: columns COLUMN_GAP apart, nodes placed by
 // their center so different shapes in a column line up.
@@ -61,8 +59,8 @@ function edge(
   source: string,
   target: string,
   label: string,
-  sourceHandle: HandleSide = "right",
-  targetHandle: HandleSide = "left",
+  sourceHandle: NodeHandleSide = "right",
+  targetHandle: NodeHandleSide = "left",
 ): CanvasEdge {
   return {
     id: `${source}->${target}`,
