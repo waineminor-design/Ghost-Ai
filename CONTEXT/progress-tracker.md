@@ -5,12 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 11 (Base Canvas) complete; awaiting the owner's
-  two-account browser check
+- Feature 12 (Shape Panel) complete; awaiting the owner's
+  two-account browser check (features 11 and 12)
 
 ## Current Goal
 
-- Next feature spec (none written after 11 yet)
+- Next feature spec (none written after 12 yet)
 
 ## Completed
 
@@ -616,13 +616,81 @@ change.
     and storage load. A stranger's Access Denied and token
     refusal are unchanged from features 08 and 10.
 
+- 12 Shape Panel (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/12-SHAPE-PANEL.md`):
+  - `lib/canvas-shapes.ts` — `CANVAS_SHAPES` (name, label,
+    description, default width/height) for rectangle
+    160×80, diamond 120×120, circle 100×100, pill 160×64,
+    cylinder 120×100, hexagon 160×90; `CanvasShape`,
+    `isCanvasShape()`, `getCanvasShape()`,
+    `SHAPE_NODE_TYPE` (`"shape"`), `SHAPE_DRAG_MIME`
+    (`application/ghost-shape`) and
+    `parseShapeDragPayload()` (null unless the JSON has a
+    known shape and positive finite width/height).
+  - `lib/canvas-colors.ts` — `NODE_COLORS` (one `default`
+    key → `fill-card` / `stroke-input` /
+    `text-card-foreground`), `DEFAULT_NODE_COLOR`,
+    `getNodeColorClasses()` (unknown keys → default).
+  - `components/canvas/shape-panel.tsx` — React Flow
+    `Panel` at `bottom-center`, pill-shaped (`rounded-full
+    bg-card border-border`), `role="group"` /
+    `aria-label="Shapes"`. One draggable button per shape
+    with a Lucide icon (`RectangleHorizontal`, `Diamond`,
+    `Circle`, `Pill`, `Cylinder`, `Hexagon`) and
+    `aria-label` + `title` "Rectangle: component or
+    service" etc. Drag start writes `{ shape, width,
+    height }` JSON under the custom MIME type,
+    `effectAllowed = "move"`.
+  - `components/canvas/shape-node.tsx` — `ShapeNode`: SVG
+    outline sized to the node (rect r=8, diamond polygon,
+    ellipse, stadium rect, cylinder body + lid edge,
+    hexagon), label centered (nothing rendered when empty),
+    selected → 2px `stroke-primary`. Four `source` handles
+    (top/right/bottom/left), visible on hover or when
+    selected. Unknown shapes render as rectangles.
+  - `components/canvas/canvas.tsx` — `Canvas` now wraps
+    `CanvasFlow` in `ReactFlowProvider`. `onDragOver`
+    → `preventDefault()` + `dropEffect = "move"`; `onDrop`
+    → `preventDefault()`, parse the payload (non-shapes
+    ignored), `screenToFlowPosition`, node centered on the
+    drop point with id `<shape>-<Date.now()>-<counter>`,
+    type `shape`, data `{ label: "", shape, color:
+    "default" }`, default width/height, added via
+    `onNodesChange([{ type: "add", item }])` from
+    `useLiveblocksFlow` (writes into room storage; checked
+    in `@liveblocks/react-flow`'s `applyNodeChanges`).
+    `nodeTypes` defined once at module level.
+  - `app/globals.css` — `--xy-handle-background-color`
+    mapped to `--muted-foreground`.
+  - Two small additions beyond the spec text, both noted in
+    Architecture Decisions: `connectionMode` is `Loose`
+    (needed for the side handles to connect), and the
+    minimap is hidden below `sm` (it overlapped the centered
+    panel on phone widths).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. A tsx
+    script checked `parseShapeDragPayload` (valid
+    rectangle/hexagon accepted; unknown shape, `toString`,
+    negative or string sizes, invalid JSON, empty, `null`,
+    arrays rejected) and that `getCanvasShape` /
+    `getNodeColorClasses` ignore prototype keys. Built CSS
+    contains `fill-card`, `stroke-input`, `stroke-primary`,
+    `fill-none`, `text-card-foreground`, `sm:block` and the
+    handle variable.
+  - Not verified (needs a browser and two Clerk accounts):
+    the panel rendering, drag-and-drop placing the node at
+    the drop point, the shapes' look, real-time sync to a
+    collaborator, and selecting/dragging nodes syncing.
+    HTML5 drag-and-drop does not work on touch screens, and
+    Firefox has historically not started drags from
+    `<button draggable>`; check Firefox in the browser test.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 12 (spec not yet in `CONTEXT/FEATURE-SPECS/`)
+- Feature 13 (spec not yet in `CONTEXT/FEATURE-SPECS/`)
 
 ## Open Questions
 
@@ -672,6 +740,19 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Shape nodes have four `source` handles and the canvas
+  uses `ConnectionMode.Loose`. Why: in React Flow's default
+  strict mode a source handle only connects to a target
+  handle, so each side would need two overlapping handles;
+  loose mode lets any side connect to any side, which is how
+  diagram editors behave. Edge creation still goes through
+  `useLiveblocksFlow`'s `onConnect`.
+- Shape list, drag payload and color keys live in `lib/`
+  (`canvas-shapes.ts`, `canvas-colors.ts`), not in the
+  canvas components, so templates and AI generation can use
+  the same shape names, sizes and color keys later. Lucide
+  icons stay in the panel (UI only).
 
 - Liveblocks Storage declares `flow` as required and
   `RoomProvider` passes `initialStorage` (an empty

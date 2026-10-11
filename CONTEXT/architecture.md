@@ -59,7 +59,13 @@ paths below are relative to it.
   `lib/canvas-types.ts` holds the canvas node/edge types
   (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`) — the one
   schema the canvas, storage, templates, AI generation and
-  spec generation share.
+  spec generation share. `lib/canvas-shapes.ts` is the one
+  shape list (name, label, default size), the `shape` node
+  type name, and the drag-and-drop payload
+  (`application/ghost-shape`) with its parser.
+  `lib/canvas-colors.ts` maps node color keys
+  (`data.color`) to design-token classes; nodes store only
+  the key.
 - `liveblocks.config.ts` (repo root) — the global Liveblocks
   types (Presence, UserMeta, Storage); every Liveblocks hook
   and the Node client are typed from it.

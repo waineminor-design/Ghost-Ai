@@ -98,6 +98,21 @@ app-specific wrappers in feature folders instead (e.g.
   canvas area shows a centered spinner and "Connecting to
   room…"; a failed connection shows a centered
   `TriangleAlert` (`text-destructive`) and a short message.
+  The minimap is hidden below `sm` so it doesn't cover the
+  shape panel on phones.
+- Shape panel: a pill-shaped toolbar (`rounded-full`,
+  `bg-card`, `border-border`) centered at the bottom of the
+  canvas, one round icon button per shape (muted icon,
+  `bg-accent` on hover). Buttons are dragged onto the
+  canvas, not clicked.
+- Shape nodes: SVG outline in the node's shape, filled and
+  stroked from the node's color key (`lib/canvas-colors.ts`;
+  `default` = `fill-card`, `stroke-input`,
+  `text-card-foreground`); selected nodes get a thicker
+  `stroke-primary` outline. Label centered. Connection
+  handles on all four sides (`--xy-handle-background-color`
+  = `--muted-foreground`), shown on hover or when selected.
+  New node colors are added to `NODE_COLORS` only.
 - Access denied: centered `Lock` icon, short message and a
   link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center
