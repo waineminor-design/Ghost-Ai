@@ -88,6 +88,16 @@ app-specific wrappers in feature folders instead (e.g.
   `md`). In a project workspace the navbar center shows the
   project name and the right section holds workspace
   actions (`Share`) before the `UserButton`.
+- Canvas: React Flow (`colorMode="dark"`) fills the
+  workspace left of the chat sidebar, with a dot
+  background and a bottom-right minimap
+  (`rounded-lg border border-border`). React Flow's colors
+  come from its `--xy-*` variables, mapped to the tokens in
+  the `.react-flow` block of `app/globals.css`; change them
+  there, not in components. While the room connects the
+  canvas area shows a centered spinner and "Connecting to
+  room…"; a failed connection shows a centered
+  `TriangleAlert` (`text-destructive`) and a short message.
 - Access denied: centered `Lock` icon, short message and a
   link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center

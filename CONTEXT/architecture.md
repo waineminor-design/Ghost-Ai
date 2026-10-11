@@ -35,6 +35,10 @@ paths below are relative to it.
   edited by hand.
 - `components/editor/`, `components/canvas/` and other
   feature folders — app-specific UI.
+  `components/canvas/canvas-room.tsx` is the client entry
+  point that joins a project's Liveblocks room;
+  `components/canvas/canvas.tsx` is the React Flow canvas
+  inside it.
 - `hooks/` — client hooks for dialog state, form state and
   mutations.
 - `lib/` — shared utilities: `cn()`, Prisma client
@@ -52,6 +56,10 @@ paths below are relative to it.
   JSON route handlers. `lib/liveblocks.ts` (`server-only`)
   holds the cached Liveblocks Node client and
   `getUserColor()` (the cursor color palette).
+  `lib/canvas-types.ts` holds the canvas node/edge types
+  (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`) — the one
+  schema the canvas, storage, templates, AI generation and
+  spec generation share.
 - `liveblocks.config.ts` (repo root) — the global Liveblocks
   types (Presence, UserMeta, Storage); every Liveblocks hook
   and the Node client are typed from it.
@@ -85,7 +93,10 @@ Hybrid storage. The database stays lean.
   database stores only the reference/URL.
 - **Liveblocks room storage**: live canvas state (nodes,
   edges) and presence during a session. The room id stays
-  aligned with the project id.
+  aligned with the project id. Storage holds one key,
+  `flow` (`LiveblocksFlow<CanvasNode, CanvasEdge>`), the
+  shape `useLiveblocksFlow` from `@liveblocks/react-flow`
+  syncs; a new room starts with an empty flow.
 
 ## Auth and Access Model
 

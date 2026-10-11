@@ -1,13 +1,13 @@
-// Workspace layout for /editor/[projectId]: the canvas fills the space
-// left of a fixed-width AI chat sidebar. Both are placeholders for now.
-export function ProjectWorkspace() {
+import { CanvasRoom } from "@/components/canvas/canvas-room";
+
+// Workspace layout for /editor/[projectId]: the shared canvas fills the
+// space left of a fixed-width AI chat sidebar (still a placeholder).
+export function ProjectWorkspace({ projectId }: { projectId: string }) {
   return (
     <div className="flex h-full">
-      <section
-        aria-label="Canvas"
-        className="flex min-w-0 flex-1 items-center justify-center bg-background"
-      >
-        <p className="text-sm text-muted-foreground">Canvas coming soon</p>
+      <section aria-label="Canvas" className="min-w-0 flex-1 bg-background">
+        {/* Keyed so switching projects starts a fresh room state. */}
+        <CanvasRoom key={projectId} projectId={projectId} />
       </section>
       {/* Hidden on small screens so the canvas keeps its width. */}
       <aside

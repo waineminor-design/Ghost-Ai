@@ -5,12 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 10 (Liveblocks Setup) complete; infrastructure
-  only, first browser use comes with feature 11
+- Feature 11 (Base Canvas) complete; awaiting the owner's
+  two-account browser check
 
 ## Current Goal
 
-- Feature 11 (Base Canvas)
+- Next feature spec (none written after 11 yet)
 
 ## Completed
 
@@ -559,14 +559,70 @@ change.
     toolchain deps (`eslint-config-next`, `prisma`,
     `shadcn`); none come from the new packages.
 
+- 11 Base Canvas (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/11-BASE-CANVAS.md`):
+  - `lib/canvas-types.ts` — `CanvasNodeData` (`label`,
+    `shape`, `color`, all strings), `CanvasNode` =
+    `Node<CanvasNodeData>`, `CanvasEdge` = `Edge`.
+  - `liveblocks.config.ts` — Storage is
+    `{ flow: LiveblocksFlow<CanvasNode, CanvasEdge> }`
+    (`flow` is `useLiveblocksFlow`'s default storage key).
+  - `components/canvas/canvas-room.tsx` (`'use client'`
+    entry) — `LiveblocksProvider` (`authEndpoint`
+    `/api/liveblocks-auth`) + `RoomProvider` (id = project
+    id, presence `cursor: null`, `isThinking: false`,
+    `initialStorage` = an empty flow). `ClientSideSuspense`
+    shows a centered spinner + "Connecting to room…" until
+    storage loads. `useErrorListener` catches
+    `ROOM_CONNECTION_ERROR` and swaps in a centered error
+    (code -1 / 4001 → "access could not be verified", other
+    codes → "connection failed"). A 401/403 from the auth
+    endpoint makes Liveblocks stop retrying and fire code
+    -1, so a rejected token never leaves a blank canvas.
+  - `components/canvas/canvas.tsx` — `useLiveblocksFlow`
+    (`suspense: true`) feeds `ReactFlow` nodes, edges and
+    the change / connect / delete handlers, so nothing is
+    held in local state. `colorMode="dark"`, dot
+    `Background`, `MiniMap` (`rounded-lg border
+    border-border`). Pan and zoom are React Flow defaults.
+    Imports `@xyflow/react/dist/base.css` (only here).
+  - `app/globals.css` — `.react-flow` block maps React
+    Flow's `--xy-*` variables to tokens: background
+    `--background`, dots `--input`, minimap `--card`, mask
+    `--background` at 60% (`color-mix`), mask stroke
+    `--border`, minimap nodes `--accent`, attribution
+    background transparent.
+  - `components/editor/project-workspace.tsx` — the canvas
+    section renders `<CanvasRoom key={projectId} …>` (keyed
+    so switching projects resets the room's error state);
+    the AI chat placeholder stays. `app/editor/[projectId]/
+    page.tsx` passes `access.project.id` after the existing
+    guard, so Access Denied is unchanged.
+  - No shape panel, custom nodes, custom edges, toolbar
+    controls or cursors added. `@liveblocks/react-flow`'s
+    stylesheet is not imported (it only styles `Cursors`).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. The
+    built CSS has React Flow's base styles in the canvas
+    chunk and the `--xy-*` mapping in the global sheet.
+    Checked each overridden `--xy-*` name against
+    `base.css` (the dot color is `--xy-background-pattern-color`,
+    not `...-dots-color`). Against `next start`, signed-out
+    `/editor/x` → 307 to sign-in and a signed-out POST to
+    `/api/liveblocks-auth` → 401.
+  - Not verified (needs a browser and two Clerk accounts):
+    "Connecting to room…" then the canvas, owner and
+    collaborator in the same room at once, the error state
+    on a refused token, and the first real Liveblocks token
+    and storage load. A stranger's Access Denied and token
+    refusal are unchanged from features 08 and 10.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 11 (Base Canvas,
-  `CONTEXT/FEATURE-SPECS/11-BASE-CANVAS.md`)
+- Feature 12 (spec not yet in `CONTEXT/FEATURE-SPECS/`)
 
 ## Open Questions
 
@@ -616,6 +672,24 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Liveblocks Storage declares `flow` as required and
+  `RoomProvider` passes `initialStorage` (an empty
+  `LiveObject` with empty `nodes` / `edges` `LiveMap`s),
+  instead of an optional `flow` that `useLiveblocksFlow`
+  would create on first load. Why: Liveblocks' types make
+  `initialStorage` mandatory once Storage has a required
+  key, and a required `flow` means later storage readers
+  (AI generation, snapshots) never handle a missing canvas.
+  `useLiveblocksFlow`'s `nodes.initial` option is therefore
+  never used; seed content through storage mutations.
+- React Flow styling: `@xyflow/react/dist/base.css` (the
+  spec's "base styles"), not `style.css`, imported once in
+  `components/canvas/canvas.tsx`. Theme colors are set by
+  overriding `--xy-*` variables in `app/globals.css`, which
+  keeps color values out of components and works
+  regardless of stylesheet order (the library reads
+  `var(--xy-x, var(--xy-x-default))`).
 
 - Prisma 7 with a driver adapter (`@prisma/adapter-pg`), no
   Accelerate. Import the client and model types from

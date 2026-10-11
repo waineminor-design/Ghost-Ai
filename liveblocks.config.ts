@@ -1,3 +1,7 @@
+import type { LiveblocksFlow } from "@liveblocks/react-flow";
+
+import type { CanvasEdge, CanvasNode } from "@/lib/canvas-types";
+
 // Global Liveblocks types. Every Liveblocks hook, component and the Node
 // client (`lib/liveblocks.ts`) are typed from this declaration.
 declare global {
@@ -10,9 +14,11 @@ declare global {
       isThinking: boolean;
     };
 
-    // The room's shared storage. Placeholder until the canvas
-    // (feature 11) adds nodes and edges.
-    Storage: Record<string, never>;
+    // The room's shared storage: the canvas nodes and edges, in the shape
+    // useLiveblocksFlow syncs (its default "flow" storage key).
+    Storage: {
+      flow: LiveblocksFlow<CanvasNode, CanvasEdge>;
+    };
 
     // Set by POST /api/liveblocks-auth when the session is prepared.
     UserMeta: {
@@ -29,6 +35,3 @@ declare global {
     };
   }
 }
-
-// Necessary because this file has no other imports or exports.
-export {};
