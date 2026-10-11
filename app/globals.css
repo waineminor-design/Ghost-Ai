@@ -94,6 +94,7 @@
     --xy-minimap-node-background-color: var(--accent);
     --xy-attribution-background-color: transparent;
     --xy-handle-background-color: var(--muted-foreground);
+    --xy-resize-background-color: var(--primary);
 }
 
 

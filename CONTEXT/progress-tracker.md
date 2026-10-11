@@ -5,12 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 13 (Canvas Layout and Drag Preview) complete;
-  awaiting the owner's browser check
+- Feature 14 (Node Editing) complete; awaiting the owner's
+  browser check
 
 ## Current Goal
 
-- Feature 14 (Node Editing)
+- Feature 15 (Node Color Toolbar)
 
 ## Completed
 
@@ -752,13 +752,100 @@ change.
   - Known: while the AI sidebar is open it covers the
     bottom-right minimap; feature 17 removes the minimap.
 
+- 14 Node Editing (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/14-NODE-EDITING.md`):
+  - `lib/canvas-shapes.ts` — `MIN_NODE_WIDTH` (60) and
+    `MIN_NODE_HEIGHT` (40).
+  - `components/canvas/shape-node.tsx` — React Flow
+    `NodeResizer`, visible only when the node is selected,
+    with those minimums: side lines resize one dimension,
+    corner handles both. Rendered after the outline and
+    label and before the connection handles, so the handles
+    stay on top at the side midpoints. `lineClassName`
+    `before:absolute before:-inset-1` widens each 1px side
+    line into a ~9px grab strip. The resizer's `dimensions`
+    (`setAttributes`) and `position` changes go straight to
+    `useLiveblocksFlow`'s `onNodesChange`, which writes
+    `width` / `height` / `position` to room storage (checked
+    in `@liveblocks/react-flow`'s `applyNodeChanges`); the
+    outline already draws from the node's `width` /
+    `height`. No local size state.
+  - Double-click on a node starts editing (`isEditing` is the
+    only local state). The label and the editor share one
+    layout (`LABEL_TEXT_CLASSES`: `m-auto max-w-full
+    text-center text-sm break-words whitespace-pre-wrap`
+    inside an `absolute inset-0 flex overflow-hidden p-4`
+    wrapper), so the text sits in the same centered spot
+    while typing, wraps inside the node and is clipped
+    rather than overflowing. `m-auto` (not
+    `items-center`) keeps the first line reachable if the
+    text grows taller than the node. Labels now keep their
+    line breaks (`whitespace-pre-wrap`).
+  - `components/canvas/node-label-editor.tsx` —
+    `NodeLabelEditor`: `contentEditable="plaintext-only"`
+    (pasted formatting dropped), `role="textbox"`,
+    `aria-label` "Node label". Text set through the DOM on
+    mount (read once, so a collaborator's rename doesn't
+    reset the draft), focused, whole label selected. Enter
+    commits (ignored while an IME is composing),
+    Shift+Enter inserts a line, Escape cancels, blur
+    commits. An `isDoneRef` guard reports each edit exactly
+    once, so the blur that can follow Enter/Escape
+    unmounting the editor does nothing. Label is
+    `innerText.trim()`; empty is allowed.
+    `nodrag` (dragging selects text) and `nokey` + the
+    `contenteditable` attribute (React Flow's
+    `isInputDOMNode` check) keep Backspace/Delete/arrows from
+    reaching canvas shortcuts.
+  - Commit calls `updateNodeData(id, { label })` from
+    `useReactFlow<CanvasNode, CanvasEdge>()` (typed from
+    `CanvasNodeData`), only when the label changed. In a
+    controlled flow React Flow turns that into a `replace`
+    change sent to `onNodesChange`, which Liveblocks
+    `reconcile`s into storage (`data` syncs; `selected` /
+    `measured` stay local). Cancel writes nothing, so the
+    previous label just shows again.
+  - `app/globals.css` — `--xy-resize-background-color`
+    mapped to `--primary` (matches the selected outline).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains `min-h-[1lh]`, `before:-inset-1`,
+    `whitespace-pre-wrap`, `select-text` and the resize
+    variable. Double-click on a node does not zoom the
+    canvas (draggable nodes carry `nopan`, which React
+    Flow's zoom filter skips).
+  - Not verified (needs a browser signed in with Clerk; a
+    headless-browser harness was not run): resize handles
+    on the selected node only, side vs corner resizing and
+    the 60×40 floor, resize and label sync to a
+    collaborator, text centered while typing,
+    Enter/click-outside/Escape/Shift+Enter, Backspace
+    editing text instead of deleting the node, and
+    `plaintext-only` in Firefox (supported since Firefox
+    136).
+  - Browser-checked by the owner (2026-10-10, Edge + VS Code
+    browser, two accounts): selected nodes show resize
+    handles, a resized rectangle synced to the other
+    window, and a label typed in a diamond showed centered
+    in both windows. The `[React Flow]` error002 warning
+    in the dev terminal came from hot reload swapping in
+    the edited `ShapeNode` (React Flow compares the
+    `nodeTypes` entries across renders); dev only.
+    Second check: Shift+Enter gave a three-line label in a
+    circle, centered and wrapped inside the node; the
+    diamond's edited label ("rtregd") synced to both
+    windows. The two error002 warnings were one per open
+    window after a single hot reload. Escape and
+    Backspace-while-typing not yet reported. While editing,
+    the browser's spell-check underlines words (red
+    squiggles); the spec doesn't cover it.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 14 (Node Editing)
+- Feature 15 (Node Color Toolbar)
 
 ## Open Questions
 
@@ -808,6 +895,14 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Node edits go through React Flow's own APIs, not direct
+  Liveblocks mutations: `NodeResizer` emits node changes
+  and labels use `updateNodeData`, both of which reach
+  `useLiveblocksFlow`'s `onNodesChange`. Why: the flow stays
+  the single write path into room storage, and later node
+  edits (feature 15 colors) can use `updateNodeData` the
+  same way.
 
 - The AI sidebar's open state lives in `EditorShell` (via
   `useAiSidebarState`) and reaches the workspace page through

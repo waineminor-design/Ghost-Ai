@@ -122,6 +122,11 @@ app-specific wrappers in feature folders instead (e.g.
   handles on all four sides (`--xy-handle-background-color`
   = `--muted-foreground`), shown on hover or when selected.
   New node colors are added to `NODE_COLORS` only.
+  Selected nodes show React Flow's resizer (side lines and
+  corner handles, `--xy-resize-background-color` =
+  `--primary`), minimum 60×40. Double-click edits the label
+  in place: the editor uses the label's own centered,
+  wrapping layout, so the text does not move while typing.
 - Access denied: centered `Lock` icon, short message and a
   link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center
