@@ -4,8 +4,11 @@ import { generateText } from "ai";
 import { withModelFallback } from "@/lib/ai-models";
 import { describeCanvas, readRoomCanvas } from "@/lib/design-agent-canvas";
 import { getProjectName } from "@/lib/project-data";
+import { upsertProjectSpec } from "@/lib/spec-data";
 import { describeChat, readRecentChatMessages } from "@/lib/spec-generator-chat";
 import { SPEC_GENERATOR_SYSTEM_PROMPT } from "@/lib/spec-generator-prompt";
+import { writeSpecsUpdatedAt } from "@/lib/spec-room";
+import { saveSpecMarkdown } from "@/lib/spec-storage";
 
 export interface SpecGeneratorPayload {
   projectId: string;
@@ -15,8 +18,10 @@ export interface SpecGeneratorPayload {
   startedByName?: string;
 }
 
+// The saved spec's ProjectSpec id and title; the Markdown is read through
+// the spec routes.
 export interface SpecGeneratorOutput {
-  markdown: string;
+  specId: string;
   title: string;
 }
 
@@ -53,6 +58,19 @@ function recordStatus(step: SpecGeneratorStep, message: string) {
   }
 }
 
+// Tells open clients to refresh their spec list (room key `specsUpdatedAt`).
+// Logged, never thrown: the spec is already saved, and a retry would only
+// generate it again.
+async function markSpecsUpdated(roomId: string) {
+  try {
+    await writeSpecsUpdatedAt(roomId, new Date().toISOString());
+  } catch (error) {
+    logger.warn("spec-generator could not write the room's specsUpdatedAt", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 // The model is asked for bare Markdown; a reply wrapped in one code fence
 // anyway is unwrapped.
 function toMarkdown(text: string): string {
@@ -63,9 +81,11 @@ function toMarkdown(text: string): string {
 
 // Reads the project's canvas and the newest messages of its AI chat, and
 // asks Gemini for a Markdown technical specification of the system on the
-// canvas. Returns the Markdown and its title; nothing is stored here. An
-// empty canvas fails at once, without retries. Callers trigger it by id
-// ("spec-generator").
+// canvas. Saves the Markdown to the private Blob store
+// (`specs/<projectId>/<runId>.md`) and its ProjectSpec row (one per run, so
+// a retried attempt replaces the file and updates the row), then tells the
+// room. Returns the spec's id and title. An empty canvas fails at once,
+// without retries. Callers trigger it by id ("spec-generator").
 export const specGenerator = task({
   id: "spec-generator",
   run: async (payload: SpecGeneratorPayload, { ctx, signal }): Promise<SpecGeneratorOutput> => {
@@ -106,6 +126,18 @@ export const specGenerator = task({
       if (!markdown) throw new Error("The model returned an empty spec");
 
       const title = `${projectName} — Technical Spec`;
+      const blobPath = await saveSpecMarkdown(payload.projectId, ctx.run.id, markdown);
+      const specId = await upsertProjectSpec({
+        projectId: payload.projectId,
+        runId: ctx.run.id,
+        title,
+        blobPath,
+        sizeBytes: Buffer.byteLength(markdown, "utf8"),
+        createdBy: payload.userId,
+        createdByName: payload.startedByName ?? null,
+      });
+      await markSpecsUpdated(roomId);
+
       recordStatus("done", "Spec ready");
       logger.log("spec-generator wrote a spec", {
         startedBy: payload.startedByName ?? null,
@@ -113,8 +145,9 @@ export const specGenerator = task({
         edges: canvas.edges.length,
         chatMessages: chat.length,
         characters: markdown.length,
+        specId,
       });
-      return { markdown, title };
+      return { specId, title };
     } catch (error) {
       // Details stay in the run log; the status is shown to people.
       logger.error("spec-generator failed", {

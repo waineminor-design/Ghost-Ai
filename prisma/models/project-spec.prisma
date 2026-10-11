@@ -1,0 +1,20 @@
+// One generated technical spec. The Markdown itself is in the private
+// Vercel Blob store at `blobPath`; this row holds only its metadata.
+model ProjectSpec {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Trigger.dev run id of the spec-generator run that wrote it. Unique, so
+  // a retried attempt of the same run updates its row instead of adding one.
+  runId         String   @unique
+  title         String
+  blobPath      String
+  // Size of the Markdown in bytes (UTF-8).
+  sizeBytes     Int
+  // Clerk user id of who asked for the spec.
+  createdBy     String
+  createdByName String?
+  createdAt     DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}

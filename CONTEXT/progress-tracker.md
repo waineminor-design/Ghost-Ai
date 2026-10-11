@@ -5,19 +5,51 @@ change.
 
 ## Current Phase
 
-- Feature 28 (Spec Generation Flow) built: the shared model
-  helper, `POST /api/ai/spec` and the `spec-generator` task.
-  `tsc`, `eslint`, `npm run build` pass and the helper and
-  chat reader passed offline tests. The live checks need the
-  owner. Feature 27 was verified end to end by the owner.
+- Feature 29 (Spec Persistence and Download) built: the
+  `ProjectSpec` model and migration (applied), saving in the
+  `spec-generator` task and the three spec routes. `tsc`,
+  `eslint`, `npm run build` pass, a storage round trip
+  passed against the real Blob store and database, and the
+  routes answer 401 signed out. The signed-in checks need
+  the owner. Feature 28's live checks are still open too.
 - **Owner: restart both `npm run dev` and
   `npm run trigger:dev`** (Ctrl+C in each, then start
-  again) so they pick up the new route and task.
+  again). `npm run dev` must restart because the database
+  gained a table: until then it uses the old Prisma client
+  and the spec routes fail. `trigger:dev` must restart to
+  pick up the task change.
 
 ## Current Goal
 
-- Owner runs feature 28's check (both `npm run dev` and
-  `npm run trigger:dev` running):
+- Owner runs feature 29's check (after the restart above),
+  in a project you own with something on the canvas
+  (`http://localhost:3001/editor/<id>`), F12, Console tab:
+  1. Generate a spec: run
+     `fetch("/api/ai/spec", { method: "POST", body: JSON.stringify({ projectId: location.pathname.split("/").pop() }) }).then(r => r.json().then(b => console.log(r.status, b)))`.
+     Expected `202 { runId: "run_…" }`. In the Trigger.dev
+     dashboard the `spec-generator` run finishes with the
+     output `{ specId, title }` (no Markdown any more).
+  2. List: run
+     `fetch(location.pathname.replace("/editor/", "/api/projects/") + "/specs").then(r => r.json()).then(console.log)`.
+     Expected: `{ specs: [...] }` with the new spec first
+     (`id`, `title`, `createdAt`, `createdByName` = your
+     name, `sizeBytes`), and no `blobPath` or URL.
+  3. Preview: the same with `"/specs/<specId>"` (the `id`
+     from step 2) in place of `"/specs"`. Expected
+     `{ id, title, createdAt, markdown }`.
+  4. Download: open
+     `http://localhost:3001/api/projects/<projectId>/specs/<specId>/download`
+     in the address bar. Expected: a file like
+     `my-project-technical-spec.md` downloads and opens as
+     the Markdown spec.
+  5. 404s: step 3 with `"/specs/nope"`, and step 2 in a
+     project you are not a member of (or with a made-up
+     project id), both answer 404.
+  6. Optional: in the Liveblocks dashboard, the project's
+     room storage now has `specsUpdatedAt`.
+- Then feature 28's check (both `npm run dev` and
+  `npm run trigger:dev` running; step 1 above repeats its
+  step 1):
   1. Start route. Open a project you own in the browser
      (`http://localhost:3001/editor/<id>`), press F12, open
      the Console tab and run
@@ -29,7 +61,8 @@ change.
      the first one again: expected `401`.
   2. Real spec. In the Trigger.dev dashboard, the run from
      step 1 (task `spec-generator`) should finish with an
-     output `{ markdown, title }`: a Markdown spec with
+     output `{ specId, title }` (since feature 29; read the
+     Markdown with feature 29's step 3 or 4): a Markdown spec with
      Overview, Components (one per node), Data Flow and the
      other sections, and the title "<Project name> —
      Technical Spec". Or use the dashboard's Test page for
@@ -1919,6 +1952,75 @@ change.
     against the running app, a real spec run from the
     Trigger.dev dashboard, the empty-canvas failure, and a
     design run after the helper refactor.
+- 29 Spec Persistence and Download (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/29-SPEC-PERSISTENCE-DOWNLOAD.md`):
+  - New `prisma/models/project-spec.prisma`: `ProjectSpec`
+    (`id`, `projectId` relation with cascade delete, `runId`
+    unique, `title`, `blobPath`, `sizeBytes`, `createdBy`,
+    `createdByName?`, `createdAt`), indexed on
+    (`projectId`, `createdAt`); `Project.specs`
+    back-relation. Migration
+    `20261011210938_add_project_spec` created and applied to
+    the dev database (`prisma migrate status`: up to date).
+    The owner must restart `npm run dev` (stale Prisma
+    client otherwise).
+  - New `lib/spec-storage.ts` (`server-only`, sibling of
+    `lib/canvas-storage.ts`): `saveSpecMarkdown` writes
+    `specs/<projectId>/<runId>.md` to the private store
+    (`text/markdown`, overwrite allowed) and
+    `loadSpecMarkdown` reads it back (null when missing).
+  - New `lib/spec-data.ts` (`server-only`):
+    `upsertProjectSpec` (by `runId`), `listProjectSpecs`
+    (newest first, no `blobPath`), `findProjectSpec` (scoped
+    to the project, so another project's spec id is null).
+  - New `lib/spec-room.ts` (`server-only`):
+    `writeSpecsUpdatedAt` sets the room's `specsUpdatedAt`
+    (created on the first write); declared as optional
+    `specsUpdatedAt?: string` in `liveblocks.config.ts`.
+  - New `lib/specs.ts` (shared with the client, for feature
+    30): the response types `SpecSummary`, `SpecList`,
+    `SpecPreview` and `toSpecFileName` (title slug + `.md`,
+    `spec.md` when the title has no letters or digits).
+  - `trigger/spec-generator.ts`: after generating, saves the
+    Markdown, upserts the row (`createdBy` = `userId`,
+    `createdByName` = `startedByName`), writes
+    `specsUpdatedAt` (logged, never thrown), then records
+    `done`. Returns `{ specId, title }`. A failed Blob or
+    database save throws, so the attempt is retried (same
+    run id, so the same path and row).
+  - New routes, each: 401 signed out, 404 without project
+    access, 404 for a spec of another project, no Blob URL
+    or token in any response:
+    `GET /api/projects/[projectId]/specs` (`{ specs }`),
+    `GET /api/projects/[projectId]/specs/[specId]`
+    (`{ id, title, createdAt, markdown }`),
+    `GET /api/projects/[projectId]/specs/[specId]/download`
+    (`text/markdown; charset=utf-8`, `attachment;
+    filename="<slug-of-title>.md"`). A Blob read error
+    answers 500 JSON.
+  - Extra, not in the spec: the list returns
+    `{ specs: [...] }` rather than a bare array, like the
+    other routes' JSON objects. A row whose file is missing
+    answers 404 "Spec not found" on read and download.
+  - `CONTEXT/architecture.md` updated.
+  - Verified: `prisma validate`, migration applied, `tsc`,
+    `eslint`, `npm run build` pass (the build lists the
+    three routes). Against the running dev server, signed
+    out, all three routes answer 401 JSON. Scratch round
+    trip against the real Blob store and database (test row
+    and file removed afterwards), 20 checks: file names
+    (em dash, accents, no letters, quotes); two saves of the
+    same run id write the same path, keep one row with the
+    same id and the second attempt's title and byte size;
+    the file holds the second attempt's Markdown, with
+    content type `text/markdown`; the list has it first and
+    no `blobPath`; lookup by another project or an unknown
+    id is null; a missing file reads as null. The task file
+    loads without keys.
+  - Not verified (needs the owner, sign-in and
+    `trigger:dev`): a real `spec-generator` run saving its
+    file and row, the routes' signed-in 404s and data, the
+    browser download, and `specsUpdatedAt` in the room.
 
 ## In Progress
 
@@ -1926,10 +2028,25 @@ change.
 
 ## Next Up
 
-- 29 Spec Storage and Download, then 30 Spec UI (specs in
-  `CONTEXT/FEATURE-SPECS/`).
+- 30 Spec UI (spec in `CONTEXT/FEATURE-SPECS/`).
 
 ## Open Questions
+
+- Spec files when a project is deleted (feature 29): the
+  `ProjectSpec` rows go with the project (cascade), but the
+  Markdown files under `specs/<projectId>/` stay in Blob, as
+  the spec says. Cleanup can come later (same question as
+  the canvas snapshots, feature 21).
+- Retry vs replay (feature 29): a retried attempt of a run
+  keeps its run id, so it replaces the file and updates the
+  one row. "Replay" in the Trigger.dev dashboard starts a
+  new run with a new id, so it saves a second spec, which
+  seems right for a fresh generation. Say if a replay
+  should replace the original instead.
+- A spec row whose Blob file is missing (feature 29): the
+  read and download routes answer 404 "Spec not found",
+  and the list still shows it. Only possible if the file is
+  removed by hand.
 
 - Sender's lock while a run waits to start (feature 27):
   the sender's composer stays locked from sending until
