@@ -8,6 +8,7 @@ import {
 } from "@xyflow/react";
 
 import { LabelEditor } from "@/components/canvas/label-editor";
+import { useLabelEditRequest } from "@/lib/canvas-label-edit";
 import type { CanvasEdge, CanvasNode } from "@/lib/canvas-types";
 import { cn } from "@/lib/utils";
 
@@ -23,8 +24,9 @@ const EDGE_LABEL_TEXT_CLASSES =
 // The canvas's edge type. A bezier curve that leaves and enters through the
 // handles the connection used, with an arrowhead at the target and a wide
 // invisible hit area. Colors come from the --xy-edge-* token mapping in
-// app/globals.css. Double-click edits the label shown at the midpoint;
-// label changes go through the Liveblocks flow, so they sync to the room.
+// app/globals.css. Double-click (or F2 / Enter from the keyboard) edits the
+// label shown at the midpoint; label changes go through the Liveblocks
+// flow, so they sync to the room.
 export function LabeledEdge({
   id,
   data,
@@ -39,6 +41,7 @@ export function LabeledEdge({
 }: EdgeProps<CanvasEdge>) {
   const { updateEdgeData } = useReactFlow<CanvasNode, CanvasEdge>();
   const [isEditing, setIsEditing] = useState(false);
+  useLabelEditRequest(id, setIsEditing);
   const label = data?.label ?? "";
   const [path, labelX, labelY] = getBezierPath({
     sourceX,

@@ -20,9 +20,11 @@ export const NODE_COLORS = {
   default: {
     label: "Default",
     fill: "fill-card",
-    stroke: "stroke-input",
+    // --ring (mid gray) rather than --input (15% white), so a default
+    // node's own outline stays readable on the dark canvas.
+    stroke: "stroke-ring",
     text: "text-card-foreground",
-    swatch: "bg-card border-input",
+    swatch: "bg-card border-ring",
   },
   blue: {
     label: "Blue",

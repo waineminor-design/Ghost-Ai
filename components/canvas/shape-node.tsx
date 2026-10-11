@@ -16,6 +16,7 @@ import {
   isNodeColor,
   type NodeColor,
 } from "@/lib/canvas-colors";
+import { useLabelEditRequest } from "@/lib/canvas-label-edit";
 import type { CanvasEdge, CanvasNode } from "@/lib/canvas-types";
 import {
   CANVAS_SHAPES,
@@ -41,12 +42,13 @@ const LABEL_TEXT_CLASSES =
 // The one custom node type on the canvas. Draws the node's shape as an SVG
 // outline sized to the node, with the label centered on top and a
 // connection handle on each side. Unknown shapes render as rectangles.
-// Selected nodes can be resized and recolored; double-click edits the
-// label. Size, label and color changes go through the Liveblocks flow, so
-// they sync to the room.
+// Selected nodes can be resized and recolored; double-click (or F2 / Enter
+// from the keyboard) edits the label. Size, label and color changes go
+// through the Liveblocks flow, so they sync to the room.
 export function ShapeNode({ id, data, selected, width, height }: NodeProps<CanvasNode>) {
   const { updateNodeData } = useReactFlow<CanvasNode, CanvasEdge>();
   const [isEditing, setIsEditing] = useState(false);
+  useLabelEditRequest(id, setIsEditing);
   const shape = getCanvasShape(data.shape) ?? CANVAS_SHAPES[0];
   const nodeWidth = width ?? shape.width;
   const nodeHeight = height ?? shape.height;
