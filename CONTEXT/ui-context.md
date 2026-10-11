@@ -153,6 +153,21 @@ app-specific wrappers in feature folders instead (e.g.
   `--primary`), minimum 60×40. Double-click edits the label
   in place: the editor uses the label's own centered,
   wrapping layout, so the text does not move while typing.
+- Edges: any handle connects to any other handle on a
+  different node (no self-connections); the edge leaves and
+  enters through the handles used. Bezier curve with a
+  closed arrowhead at the target and a 24px invisible hit
+  area. Default stroke `--muted-foreground` at 1.5px;
+  selected `--primary` at 2.5px, arrowhead included. Colors
+  come from `--xy-edge-stroke` / `--xy-edge-stroke-selected`
+  in the `.react-flow` block of `app/globals.css`.
+  Double-click an edge (or its label) to edit the label in
+  place at the midpoint: a small box (`rounded-md`,
+  `bg-card`, `border-border`, `text-xs`, `shadow-sm`); no
+  box when the label is empty. Enter or clicking outside
+  saves, Shift+Enter adds a line, Escape cancels. Delete or
+  Backspace removes the selected nodes and edges (not while
+  typing in a label).
 - Node color toolbar: React Flow `NodeToolbar` above the
   node, shown only while it is the single selected node and
   hidden while its label is edited. Same pill as the shape

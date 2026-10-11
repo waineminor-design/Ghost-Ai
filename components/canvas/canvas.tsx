@@ -8,10 +8,14 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  type Connection,
+  type DefaultEdgeOptions,
+  type EdgeTypes,
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/base.css";
 
+import { LabeledEdge } from "@/components/canvas/labeled-edge";
 import { ShapeNode } from "@/components/canvas/shape-node";
 import { ShapePanel } from "@/components/canvas/shape-panel";
 import { DEFAULT_NODE_COLOR } from "@/lib/canvas-colors";
@@ -21,11 +25,32 @@ import {
   parseShapeDragPayload,
   type ShapeDragPayload,
 } from "@/lib/canvas-shapes";
-import type { CanvasEdge, CanvasNode } from "@/lib/canvas-types";
+import {
+  LABELED_EDGE_TYPE,
+  type CanvasEdge,
+  type CanvasNode,
+} from "@/lib/canvas-types";
 
 // Defined once, outside the component: React Flow re-mounts every node
 // when this object changes identity.
 const NODE_TYPES: NodeTypes = { [SHAPE_NODE_TYPE]: ShapeNode };
+const EDGE_TYPES: EdgeTypes = { [LABELED_EDGE_TYPE]: LabeledEdge };
+
+// Merged into every new connection before it reaches the Liveblocks flow's
+// onConnect, so new edges are labeled edges with an empty label.
+const DEFAULT_EDGE_OPTIONS: DefaultEdgeOptions = {
+  type: LABELED_EDGE_TYPE,
+  data: { label: "" },
+};
+
+// Either key deletes the selected nodes and edges. React Flow ignores it
+// while a text field (e.g. a label editor) has focus.
+const DELETE_KEYS = ["Delete", "Backspace"];
+
+// No edges from a node to itself.
+function isNotSelfConnection(connection: CanvasEdge | Connection) {
+  return connection.source !== connection.target;
+}
 
 // The shared React Flow canvas. Nodes and edges live in the room's
 // Liveblocks storage, so every change syncs to everyone in the room.
@@ -108,9 +133,15 @@ function CanvasFlow() {
         nodes={nodes}
         edges={edges}
         nodeTypes={NODE_TYPES}
+        edgeTypes={EDGE_TYPES}
+        defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
+        isValidConnection={isNotSelfConnection}
+        deleteKeyCode={DELETE_KEYS}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        // Removes deleted nodes, their connected edges and deleted edges
+        // from room storage.
         onDelete={onDelete}
         onDragOver={handleDragOver}
         onDrop={handleDrop}

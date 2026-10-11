@@ -2,25 +2,27 @@ import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 
 import { cn } from "@/lib/utils";
 
-type NodeLabelEditorProps = {
+type LabelEditorProps = {
   initialLabel: string;
   // Same layout classes as the read-only label, so the text stays exactly
   // where the label normally sits while typing.
   className: string;
+  // Accessible name, e.g. "Node label" or "Edge label".
+  ariaLabel: string;
   // Called exactly once per edit: the trimmed label, or null when the edit
   // was cancelled.
   onDone: (label: string | null) => void;
 };
 
-// Edits a node label in place. Enter commits, Shift+Enter adds a line,
-// Escape cancels, and leaving the field commits. Mounted only while
+// Edits a node or edge label in place. Enter commits, Shift+Enter adds a
+// line, Escape cancels, and leaving the field commits. Mounted only while
 // editing.
-export function NodeLabelEditor({ initialLabel, className, onDone }: NodeLabelEditorProps) {
+export function LabelEditor({ initialLabel, className, ariaLabel, onDone }: LabelEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   // Enter/Escape unmount the editor, which can fire a blur afterwards; this
   // keeps that blur from reporting the edit a second time.
   const isDoneRef = useRef(false);
-  // Read once on mount: a collaborator renaming the node mid-edit must not
+  // Read once on mount: a collaborator renaming the label mid-edit must not
   // reset what is being typed.
   const initialLabelRef = useRef(initialLabel);
 
@@ -50,6 +52,10 @@ export function NodeLabelEditor({ initialLabel, className, onDone }: NodeLabelEd
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    // Keys typed here stay here: React Flow's edge wrapper handles Enter,
+    // Space and Escape itself (select / deselect) and does not skip text
+    // fields the way nodes do.
+    event.stopPropagation();
     // Enter while an IME is composing confirms the composition, not the
     // label.
     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -69,10 +75,10 @@ export function NodeLabelEditor({ initialLabel, className, onDone }: NodeLabelEd
       contentEditable="plaintext-only"
       role="textbox"
       aria-multiline
-      aria-label="Node label"
+      aria-label={ariaLabel}
       // nodrag: dragging selects text instead of moving the node.
       // nokey: React Flow ignores keys typed here (Backspace must not
-      // delete the node).
+      // delete the node or edge).
       className={cn(
         "nodrag nokey min-h-[1lh] min-w-1 cursor-text outline-none select-text",
         className,

@@ -5,12 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 15 (Node Color Toolbar) complete; awaiting the
-  owner's browser check
+- Feature 16 (Edge Behavior) complete; awaiting the owner's
+  browser check
 
 ## Current Goal
 
-- Feature 16 (Edge Behavior)
+- Feature 17 (Canvas Ergonomics)
 
 ## Completed
 
@@ -905,13 +905,87 @@ change.
     changing on click; the change reaching a collaborator;
     keyboard use of the swatches.
 
+- 16 Edge Behavior (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/16-EDGE-BEHAVIOR.md`):
+  - `lib/canvas-types.ts` — `CanvasEdgeData` (`label`),
+    `CanvasEdge` is now `Edge<CanvasEdgeData>`, and
+    `LABELED_EDGE_TYPE` (`"labeled"`).
+  - `components/canvas/labeled-edge.tsx` — `LabeledEdge`:
+    `getBezierPath` from the edge's source/target positions
+    (so it leaves and enters through the handles the
+    connection used), `BaseEdge` with `interactionWidth` 24
+    (the invisible hit area), stroke 1.5px, 2.5px when
+    selected. Arrowhead: a closed-triangle `<marker>` per
+    edge (`markerUnits="userSpaceOnUse"`, so the thicker
+    selected stroke doesn't enlarge it) filled from
+    `--xy-edge-stroke` / `--xy-edge-stroke-selected`, so it
+    follows the selected color. Double-click on the path or
+    the label box starts editing (`isEditing` is the only
+    local state). The label sits at the path midpoint in
+    `EdgeLabelRenderer` (`rounded-md border-border bg-card
+    text-xs`, `nodrag nopan pointer-events-auto`); no box
+    when the label is empty and not being edited. Commit
+    calls `updateEdgeData(id, { label })` only when the
+    label changed: React Flow turns it into a `replace`
+    change sent to `onEdgesChange`, which Liveblocks
+    `reconcile`s into storage (checked in
+    `@liveblocks/react-flow`'s `applyEdgeChanges`; `data`
+    syncs, `selected` stays local). Edges made before this
+    feature have no `data` and read as an empty label.
+  - `components/canvas/label-editor.tsx` — renamed from
+    `node-label-editor.tsx` (`NodeLabelEditor` →
+    `LabelEditor`) so nodes and edges share it, with a new
+    `ariaLabel` prop ("Node label" / "Edge label"). Same
+    Enter / Shift+Enter / Escape / blur rules and the same
+    `isDoneRef` guard (one commit per edit). New:
+    `stopPropagation()` on keydown, because React Flow's
+    edge wrapper handles Enter/Space/Escape (select /
+    deselect the edge) and, unlike the node wrapper, does
+    not skip text fields; the label box is a React child of
+    that wrapper even though it is portaled.
+  - `components/canvas/canvas.tsx` — `edgeTypes`
+    (`labeled` → `LabeledEdge`, module level),
+    `defaultEdgeOptions` `{ type: "labeled", data: { label:
+    "" } }` (React Flow merges these into the connection
+    before calling Liveblocks' `onConnect`, which builds the
+    edge with `addEdge`; checked in both sources),
+    `isValidConnection` rejecting `source === target`, and
+    `deleteKeyCode` `["Delete", "Backspace"]` (React Flow's
+    default is Backspace only). Deletion was already wired:
+    React Flow's delete adds a deleted node's connected
+    edges and calls `onDelete`, which removes nodes and
+    edges from room storage. The delete key is ignored while
+    focus is in a `contenteditable` / `.nokey` element.
+  - `app/globals.css` — `--xy-edge-stroke` →
+    `--muted-foreground`, `--xy-edge-stroke-selected` →
+    `--primary` (also colors the line drawn while
+    connecting).
+  - `CONTEXT/ui-context.md` (Edges), `CONTEXT/architecture.md`
+    (`canvas-types.ts` contents) updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains `fill-(--xy-edge-stroke)`,
+    `fill-(--xy-edge-stroke-selected)`, `pointer-events-auto`,
+    `min-w-12`, `max-w-48` and both edge variables. Checked
+    in the React Flow source: edge wrappers carry `nopan`,
+    so double-clicking an edge does not zoom the canvas.
+  - Not verified (needs a browser signed in with Clerk; no
+    headless harness was run): connecting each side to each
+    side, self-connection refused, edge selection and the
+    hit area, label edit Enter/Escape/click-outside and the
+    single sync per edit, Delete/Backspace removing nodes
+    with their edges and syncing to a collaborator.
+  - Known: edges drawn before this feature keep React
+    Flow's default edge type (gray, no arrowhead, no
+    labels); delete and redraw them. The spec only changes
+    new connections.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 16 (Edge Behavior)
+- Feature 17 (Canvas Ergonomics)
 
 ## Open Questions
 
@@ -961,6 +1035,19 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Edge labels live in `data.label` (`CanvasEdgeData`), not
+  React Flow's top-level `label`, and are edited with
+  `updateEdgeData`. Why: the spec defines the edge data
+  type with `label`, and it uses the same synced
+  `onEdgesChange` path as node labels.
+- One `LabelEditor` serves node and edge labels. Why: the
+  commit-once rule and key handling must be identical for
+  both; two copies would drift.
+- Edge colors come from React Flow's `--xy-edge-*` variables
+  mapped to tokens in `globals.css`; the arrowhead reads the
+  same variables. Why: same rule as the other React Flow
+  colors, and the arrow matches the path in both states.
 
 - Selected nodes are marked by the resize frame, not by a
   `stroke-primary` outline: the node keeps its color's

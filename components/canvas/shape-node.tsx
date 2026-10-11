@@ -7,8 +7,8 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 
+import { LabelEditor } from "@/components/canvas/label-editor";
 import { NodeColorToolbar } from "@/components/canvas/node-color-toolbar";
-import { NodeLabelEditor } from "@/components/canvas/node-label-editor";
 import { ShapeOutline } from "@/components/canvas/shape-outline";
 import {
   DEFAULT_NODE_COLOR,
@@ -105,9 +105,10 @@ export function ShapeNode({ id, data, selected, width, height }: NodeProps<Canva
             )}
           >
             {isEditing ? (
-              <NodeLabelEditor
+              <LabelEditor
                 initialLabel={data.label}
                 className={LABEL_TEXT_CLASSES}
+                ariaLabel="Node label"
                 onDone={finishEditing}
               />
             ) : (

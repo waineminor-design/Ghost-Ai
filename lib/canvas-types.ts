@@ -13,4 +13,14 @@ export type CanvasNodeData = {
 
 export type CanvasNode = Node<CanvasNodeData>;
 
-export type CanvasEdge = Edge;
+// The React Flow edge type every new connection gets: a curved edge with an
+// arrowhead and an optional label at its midpoint.
+export const LABELED_EDGE_TYPE = "labeled";
+
+// What an edge carries besides its endpoints. An empty label shows no
+// label box. Edges created before labels existed have no `data`.
+export type CanvasEdgeData = {
+  label: string;
+};
+
+export type CanvasEdge = Edge<CanvasEdgeData>;

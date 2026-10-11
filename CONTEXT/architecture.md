@@ -57,9 +57,11 @@ paths below are relative to it.
   holds the cached Liveblocks Node client and
   `getUserColor()` (the cursor color palette).
   `lib/canvas-types.ts` holds the canvas node/edge types
-  (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`) — the one
-  schema the canvas, storage, templates, AI generation and
-  spec generation share. `lib/canvas-shapes.ts` is the one
+  (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`,
+  `CanvasEdgeData`) and the edge type name
+  (`LABELED_EDGE_TYPE`) — the one schema the canvas,
+  storage, templates, AI generation and spec generation
+  share. `lib/canvas-shapes.ts` is the one
   shape list (name, label, default size), the `shape` node
   type name, and the drag-and-drop payload
   (`application/ghost-shape`) with its parser.

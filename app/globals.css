@@ -141,6 +141,8 @@
     --xy-attribution-background-color: transparent;
     --xy-handle-background-color: var(--muted-foreground);
     --xy-resize-background-color: var(--primary);
+    --xy-edge-stroke: var(--muted-foreground);
+    --xy-edge-stroke-selected: var(--primary);
 }
 
 
