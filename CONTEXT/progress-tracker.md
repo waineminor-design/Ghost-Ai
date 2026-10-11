@@ -1817,6 +1817,18 @@ change.
     failure reply. Not tested offline: the follower itself
     (it needs Trigger.dev's realtime API) and the task's
     reply calls (the helper they use was tested in 26).
+  - Owner-verified end to end (2026-10-11, two accounts in two
+    browsers): a prompt typed in the AI Architect chat showed
+    in both windows, the status line ran (including "trying
+    another model" — gemini-3.8-flash was busy and the
+    fallback took over), the Ghost AI cursor and composer lock
+    appeared for both, a 5-node URL-shortener diagram was drawn
+    live, and Ghost AI's reply ("Added 5 nodes, added 5
+    edges.") appeared in both chats. The failure reply was not
+    exercised.
+  - Polish idea (not done): when the model returns only tool
+    calls, the reply is just the change count; it could name
+    the main components it added.
 
 ## In Progress
 
