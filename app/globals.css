@@ -16,6 +16,27 @@
     --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar: var(--sidebar);
+    --color-node-blue: var(--node-blue);
+    --color-node-blue-border: var(--node-blue-border);
+    --color-node-blue-foreground: var(--node-blue-foreground);
+    --color-node-green: var(--node-green);
+    --color-node-green-border: var(--node-green-border);
+    --color-node-green-foreground: var(--node-green-foreground);
+    --color-node-purple: var(--node-purple);
+    --color-node-purple-border: var(--node-purple-border);
+    --color-node-purple-foreground: var(--node-purple-foreground);
+    --color-node-orange: var(--node-orange);
+    --color-node-orange-border: var(--node-orange-border);
+    --color-node-orange-foreground: var(--node-orange-foreground);
+    --color-node-red: var(--node-red);
+    --color-node-red-border: var(--node-red-border);
+    --color-node-red-foreground: var(--node-red-foreground);
+    --color-node-yellow: var(--node-yellow);
+    --color-node-yellow-border: var(--node-yellow-border);
+    --color-node-yellow-foreground: var(--node-yellow-foreground);
+    --color-node-teal: var(--node-teal);
+    --color-node-teal-border: var(--node-teal-border);
+    --color-node-teal-foreground: var(--node-teal-foreground);
     --color-chart-5: var(--chart-5);
     --color-chart-4: var(--chart-4);
     --color-chart-3: var(--chart-3);
@@ -82,18 +103,42 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+    /* Node colors (mapped in lib/canvas-colors.ts): a dark fill, a
+       brighter outline and light text per color, so labels stay readable
+       on the dark canvas. The default node color reuses --card, --input
+       and --card-foreground. */
+    --node-blue: oklch(0.32 0.08 255);
+    --node-blue-border: oklch(0.68 0.15 255);
+    --node-blue-foreground: oklch(0.93 0.03 255);
+    --node-green: oklch(0.32 0.07 150);
+    --node-green-border: oklch(0.7 0.15 150);
+    --node-green-foreground: oklch(0.93 0.05 150);
+    --node-purple: oklch(0.32 0.09 300);
+    --node-purple-border: oklch(0.68 0.16 300);
+    --node-purple-foreground: oklch(0.93 0.03 300);
+    --node-orange: oklch(0.33 0.08 50);
+    --node-orange-border: oklch(0.73 0.15 55);
+    --node-orange-foreground: oklch(0.93 0.04 60);
+    --node-red: oklch(0.32 0.09 25);
+    --node-red-border: var(--destructive);
+    --node-red-foreground: oklch(0.93 0.03 25);
+    --node-yellow: oklch(0.34 0.07 95);
+    --node-yellow-border: oklch(0.82 0.15 95);
+    --node-yellow-foreground: oklch(0.95 0.05 100);
+    --node-teal: oklch(0.32 0.05 190);
+    --node-teal-border: oklch(0.73 0.12 190);
+    --node-teal-foreground: oklch(0.93 0.04 190);
 }
 
 /* React Flow canvas: point its theme variables at the design tokens. */
 .react-flow {
     --xy-background-color: var(--background);
     --xy-background-pattern-color: var(--input);
-    --xy-minimap-background-color: var(--card);
-    --xy-minimap-mask-background-color: color-mix(in oklch, var(--background) 60%, transparent);
-    --xy-minimap-mask-stroke-color: var(--border);
-    --xy-minimap-node-background-color: var(--accent);
     --xy-attribution-background-color: transparent;
     --xy-handle-background-color: var(--muted-foreground);
+    --xy-resize-background-color: var(--primary);
+    --xy-edge-stroke: var(--muted-foreground);
+    --xy-edge-stroke-selected: var(--primary);
 }
 
 

@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 interface EditorDialogProps {
   open: boolean;
@@ -16,6 +17,8 @@ interface EditorDialogProps {
   description?: string;
   // Action buttons rendered in the dialog footer.
   footer?: ReactNode;
+  // Extra classes for the dialog panel, e.g. a wider max width.
+  className?: string;
   children?: ReactNode;
 }
 
@@ -27,11 +30,17 @@ export function EditorDialog({
   title,
   description,
   footer,
+  className,
   children,
 }: EditorDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border border-border bg-popover text-popover-foreground">
+      <DialogContent
+        className={cn(
+          "border border-border bg-popover text-popover-foreground",
+          className,
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}

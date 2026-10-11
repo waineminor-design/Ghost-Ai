@@ -42,6 +42,33 @@ Current values are shadcn's neutral dark palette (see
 (e.g. a fainter text tone, success state, node colors) are
 added to `globals.css` first, then listed here.
 
+### Node colors
+
+Eight colors a canvas node can take, picked from the node
+color toolbar. Each has a dark fill, a brighter outline and
+light text, so labels stay readable on the dark canvas
+(text on fill is above 10:1, outline on the canvas above
+6:1). Tokens are in `:root` in `app/globals.css` and exposed
+to Tailwind as `--color-node-*`. Nodes store only the key
+(`data.color`); `NODE_COLORS` in `lib/canvas-colors.ts` is
+the one place a key becomes classes.
+
+| Key       | Fill               | Outline                    | Text                          |
+| --------- | ------------------ | -------------------------- | ----------------------------- |
+| `default` | `--card`           | `--input`                  | `--card-foreground`           |
+| `blue`    | `--node-blue`      | `--node-blue-border`       | `--node-blue-foreground`      |
+| `green`   | `--node-green`     | `--node-green-border`      | `--node-green-foreground`     |
+| `purple`  | `--node-purple`    | `--node-purple-border`     | `--node-purple-foreground`    |
+| `orange`  | `--node-orange`    | `--node-orange-border`     | `--node-orange-foreground`    |
+| `red`     | `--node-red`       | `--node-red-border` (= `--destructive`) | `--node-red-foreground` |
+| `yellow`  | `--node-yellow`    | `--node-yellow-border`     | `--node-yellow-foreground`    |
+| `teal`    | `--node-teal`      | `--node-teal-border`       | `--node-teal-foreground`      |
+
+Utilities: `fill-node-<key>`, `stroke-node-<key>-border`,
+`text-node-<key>-foreground` (and `bg-` / `border-` for the
+toolbar swatches). A new node color needs its three tokens
+in `globals.css`, a row here and an entry in `NODE_COLORS`.
+
 Exception: collaborator cursor colors are hex values in
 `USER_COLORS` in `lib/liveblocks.ts`. They are sent to
 other clients as Liveblocks user info, so they must be
@@ -83,36 +110,89 @@ app-specific wrappers in feature folders instead (e.g.
 ## Layout Patterns
 
 - Editor: full-viewport layout — top navbar, canvas filling
-  the rest, a floating left project sidebar, and a right
-  chat/specs sidebar (fixed width, `border-l`, hidden below
-  `md`). In a project workspace the navbar center shows the
-  project name and the right section holds workspace
-  actions (`Share`) before the `UserButton`.
+  the whole area under it, and two sidebars floating over
+  the canvas: the project sidebar on the left and the AI
+  chat/specs sidebar on the right (`w-80`, `rounded-xl`,
+  `bg-sidebar`, `shadow-lg`). Neither takes width from the
+  canvas; closed, each slides fully off-screen and is
+  `inert`. The AI sidebar starts open from `lg` up and
+  closed below. In a project workspace the navbar left
+  section holds `Templates` (`LayoutTemplate`, ghost, icon
+  only below `sm`) after the project sidebar toggle, the
+  center shows the project name and the right section holds
+  the AI sidebar toggle (`PanelRightOpen` /
+  `PanelRightClose`) and `Share` (icon only below `sm`)
+  before the `UserButton`. `Templates` sits on the left
+  because the right section is full on a 375 px phone.
 - Canvas: React Flow (`colorMode="dark"`) fills the
-  workspace left of the chat sidebar, with a dot
-  background and a bottom-right minimap
-  (`rounded-lg border border-border`). React Flow's colors
+  workspace, with a dot
+  background and the canvas control bar (no minimap).
+  React Flow's colors
   come from its `--xy-*` variables, mapped to the tokens in
   the `.react-flow` block of `app/globals.css`; change them
   there, not in components. While the room connects the
   canvas area shows a centered spinner and "Connecting to
   room…"; a failed connection shows a centered
   `TriangleAlert` (`text-destructive`) and a short message.
-  The minimap is hidden below `sm` so it doesn't cover the
-  shape panel on phones.
+- Canvas control bar: the same pill as the shape panel
+  (`rounded-full`, `bg-card`, `border-border`, `shadow-lg`)
+  at the bottom-left of the canvas: zoom out, zoom in, fit
+  view, a thin divider, undo, redo (round icon buttons,
+  muted icon, `bg-accent` on hover). Each button has an
+  `aria-label` and a tooltip (shadcn `Tooltip`) naming it
+  and its shortcut. Undo/redo are dimmed (`opacity-50`)
+  when there is nothing to undo/redo but stay focusable, so
+  their tooltip still shows. Where the canvas is too narrow
+  for the bar and the shape panel side by side (below `md`)
+  the bar sits above the shape panel; while the project
+  sidebar is open (from `md`) it slides right of the
+  sidebar. Shortcuts: `+`/`=` zoom in, `-` zoom out,
+  Ctrl/Cmd+Z undo, Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z redo, all
+  ignored while typing in a text field.
 - Shape panel: a pill-shaped toolbar (`rounded-full`,
   `bg-card`, `border-border`) centered at the bottom of the
   canvas, one round icon button per shape (muted icon,
   `bg-accent` on hover). Buttons are dragged onto the
-  canvas, not clicked.
+  canvas (or clicked to add at the view center). While
+  dragging, the drag image is the shape's outline at 60%
+  size (node fill, `stroke-primary`), drawn by the same
+  `ShapeOutline` as the nodes.
 - Shape nodes: SVG outline in the node's shape, filled and
-  stroked from the node's color key (`lib/canvas-colors.ts`;
-  `default` = `fill-card`, `stroke-input`,
-  `text-card-foreground`); selected nodes get a thicker
-  `stroke-primary` outline. Label centered. Connection
+  stroked from the node's color key (see Node colors above);
+  selected nodes keep their color's outline at a thicker
+  width (the resize frame marks the selection), so a newly
+  picked color shows at once. Label centered. Connection
   handles on all four sides (`--xy-handle-background-color`
   = `--muted-foreground`), shown on hover or when selected.
-  New node colors are added to `NODE_COLORS` only.
+  Selected nodes show React Flow's resizer (side lines and
+  corner handles, `--xy-resize-background-color` =
+  `--primary`), minimum 60×40. Double-click edits the label
+  in place: the editor uses the label's own centered,
+  wrapping layout, so the text does not move while typing.
+- Edges: any handle connects to any other handle on a
+  different node (no self-connections); the edge leaves and
+  enters through the handles used. Bezier curve with a
+  closed arrowhead at the target and a 24px invisible hit
+  area. Default stroke `--muted-foreground` at 1.5px;
+  selected `--primary` at 2.5px, arrowhead included. Colors
+  come from `--xy-edge-stroke` / `--xy-edge-stroke-selected`
+  in the `.react-flow` block of `app/globals.css`.
+  Double-click an edge (or its label) to edit the label in
+  place at the midpoint: a small box (`rounded-md`,
+  `bg-card`, `border-border`, `text-xs`, `shadow-sm`); no
+  box when the label is empty. Enter or clicking outside
+  saves, Shift+Enter adds a line, Escape cancels. Delete or
+  Backspace removes the selected nodes and edges (not while
+  typing in a label).
+- Node color toolbar: React Flow `NodeToolbar` above the
+  node, shown only while it is the single selected node and
+  hidden while its label is edited. Same pill as the shape
+  panel (`rounded-full`, `bg-card`, `border-border`,
+  `shadow-lg`), one round swatch per node color (fill with
+  its outline as the border, `bg-accent` behind it on
+  hover); the current color shows a `Check` in its text
+  color and has `aria-pressed`. Each swatch's `aria-label`
+  is the color name.
 - Access denied: centered `Lock` icon, short message and a
   link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center
@@ -130,6 +210,18 @@ app-specific wrappers in feature folders instead (e.g.
   only), and `Copy link` in the footer ("Copied!" for ~2 s).
   Users without a Clerk profile show the email next to a
   generic `UserRound` avatar (shadcn `Avatar`).
+- Templates dialog: `EditorDialog` widened to
+  `min(80rem, 100% - 4rem)` from `sm`, at most the screen
+  height, the card list scrolling inside it. Cards
+  (`rounded-lg`, `bg-card`, `border-border`) in one column,
+  two from `lg`: a `5:2` preview (`bg-background`) on top,
+  then name, one-line description and an `Import` button.
+  The preview is an SVG of the template's real nodes and
+  edges, drawn with `ShapeOutline`, the node color classes
+  and React Flow's bezier path, with non-scaling strokes and
+  no labels (too small to read at that scale). Importing
+  over a non-empty canvas opens a nested "Replace the
+  canvas?" dialog (Cancel + destructive `Replace canvas`).
 - Auth pages: 50/50 split — a branded colored panel on one
   side, the Clerk form on the other.
 

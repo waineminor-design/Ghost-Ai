@@ -56,6 +56,10 @@ export const CANVAS_SHAPES = [
   },
 ] as const satisfies readonly CanvasShapeDefinition[];
 
+// Smallest size a node can be resized to, so it never collapses.
+export const MIN_NODE_WIDTH = 60;
+export const MIN_NODE_HEIGHT = 40;
+
 export type CanvasShape = (typeof CANVAS_SHAPES)[number]["name"];
 
 // The React Flow node type that renders every shape.

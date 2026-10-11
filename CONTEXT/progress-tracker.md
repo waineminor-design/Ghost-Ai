@@ -5,12 +5,13 @@ change.
 
 ## Current Phase
 
-- Feature 12 (Shape Panel) complete; awaiting the owner's
-  two-account browser check (features 11 and 12)
+- Feature 18 (Starter Templates) complete; owner's browser
+  check passed for the dialog, import, fit view and sync
 
 ## Current Goal
 
-- Next feature spec (none written after 12 yet)
+- Owner's check of the replace confirmation and undo
+  after an import, then feature 19
 
 ## Completed
 
@@ -492,6 +493,13 @@ change.
     served a stale `lib/project-data.ts` ("findAccessibleProject
     is not a function") while `tsc` and `next build` passed.
     Fix: stop the dev server, delete `.next/`, restart.
+    Same after feature 15: new `@theme` color tokens in
+    `globals.css` were missing from the running dev server's CSS
+    (swatches empty, nodes black) though the production build had
+    them. After adding theme tokens, restart `next dev` (and clear
+    `.next/` if they still don't appear). Feature 15 browser-
+    verified after the restart: swatches show colors, picking blue
+    recolors the node and syncs to the collaborator.
 
 - 10 Liveblocks Setup (2026-10-10,
   spec: `CONTEXT/FEATURE-SPECS/10-LIVEBLOCKS-SETUP.md`):
@@ -691,13 +699,450 @@ change.
     viewport, so the same node sits at different screen
     positions. Firefox and edge connections not checked.
 
+- 13 Canvas Layout and Drag Preview (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/13-CANVAS-LAYOUT-AND-DRAG-PREVIEW.md`):
+  - `hooks/use-ai-sidebar-state.ts` — `useAiSidebarState()`
+    (owned by `EditorShell`): `isOpen`, `followsScreenSize`,
+    `toggle`. Until the user toggles, the state follows a
+    `(min-width: 64rem)` media query (Tailwind `lg`) via
+    `useSyncExternalStore`; the server renders the desktop
+    (open) state.
+  - `components/editor/ai-sidebar-context.ts` —
+    `AiSidebarContext` + `useAiSidebarVisibility()`, so the
+    workspace page reads the state the navbar toggles.
+  - `components/editor/ai-sidebar.tsx` (`'use client'`
+    entry) — the AI chat placeholder as a floating panel:
+    `absolute inset-y-2 right-2 z-20 w-80`, `rounded-xl`,
+    `bg-sidebar`, `shadow-lg`, like the project sidebar.
+    Slides off-screen via `translate-x` and is `inert` when
+    closed. While it follows the screen size its position
+    comes from CSS (`lg:translate-x-0`), so the first paint
+    is right on phones and desktops with no slide-in flash.
+    `z-20` keeps it under the project sidebar's mobile scrim
+    (`z-30`) and the project sidebar (`z-40`).
+  - `components/editor/project-workspace.tsx` — the canvas
+    section fills the whole area under the navbar; the AI
+    sidebar floats over it. It is no longer hidden below
+    `md` (closed by default there instead).
+  - `components/editor/editor-navbar.tsx` — AI sidebar
+    toggle (`PanelRightOpen` / `PanelRightClose`, ghost icon
+    button, `aria-label` "Open AI sidebar" / "Close AI
+    sidebar", `aria-expanded`) before `Share`, in workspaces
+    only. The `Share` label is `sr-only` below `sm` (icon
+    only, accessible name unchanged) so the right section
+    still fits on a 375 px phone with the extra button.
+  - `components/canvas/shape-outline.tsx` — `ShapeOutline`
+    moved here unchanged from `shape-node.tsx`; the node and
+    the drag preview both import it.
+  - `components/canvas/shape-drag-preview.tsx` —
+    `setShapeDragImage(dataTransfer, payload)`: renders the
+    shape's outline at 60% of its default size into a
+    temporary off-screen `<div>` (own React root,
+    `flushSync`), calls `setDragImage` with the offset at
+    the outline's center (matching how the drop centers the
+    node), and unmounts + removes the element in a
+    `setTimeout` after dragstart. Preview paint: node fill +
+    `stroke-primary` (the default `stroke-input` is 15%
+    white and nearly vanishes once the browser fades the
+    drag image). Called from the panel's `startShapeDrag`;
+    the drag payload and drop handling are unchanged.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains every new class (`-top-[9999px]`,
+    `lg:translate-x-0`, `translate-x-[calc(100%+0.5rem)]`,
+    `max-sm:sr-only`, ...). A tsx script rendered
+    `ShapeOutline` for all six shapes at preview size.
+  - Not verified (needs a browser signed in with Clerk): the
+    drag image itself in each browser, the sidebar sliding
+    and toggling, the default state on a phone vs desktop,
+    and drop-and-sync still working. Off-screen drag-image
+    elements are known to work in Chromium and Firefox;
+    Safari is the one to watch.
+  - Known: while the AI sidebar is open it covers the
+    bottom-right minimap; feature 17 removes the minimap.
+
+- 14 Node Editing (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/14-NODE-EDITING.md`):
+  - `lib/canvas-shapes.ts` — `MIN_NODE_WIDTH` (60) and
+    `MIN_NODE_HEIGHT` (40).
+  - `components/canvas/shape-node.tsx` — React Flow
+    `NodeResizer`, visible only when the node is selected,
+    with those minimums: side lines resize one dimension,
+    corner handles both. Rendered after the outline and
+    label and before the connection handles, so the handles
+    stay on top at the side midpoints. `lineClassName`
+    `before:absolute before:-inset-1` widens each 1px side
+    line into a ~9px grab strip. The resizer's `dimensions`
+    (`setAttributes`) and `position` changes go straight to
+    `useLiveblocksFlow`'s `onNodesChange`, which writes
+    `width` / `height` / `position` to room storage (checked
+    in `@liveblocks/react-flow`'s `applyNodeChanges`); the
+    outline already draws from the node's `width` /
+    `height`. No local size state.
+  - Double-click on a node starts editing (`isEditing` is the
+    only local state). The label and the editor share one
+    layout (`LABEL_TEXT_CLASSES`: `m-auto max-w-full
+    text-center text-sm break-words whitespace-pre-wrap`
+    inside an `absolute inset-0 flex overflow-hidden p-4`
+    wrapper), so the text sits in the same centered spot
+    while typing, wraps inside the node and is clipped
+    rather than overflowing. `m-auto` (not
+    `items-center`) keeps the first line reachable if the
+    text grows taller than the node. Labels now keep their
+    line breaks (`whitespace-pre-wrap`).
+  - `components/canvas/node-label-editor.tsx` —
+    `NodeLabelEditor`: `contentEditable="plaintext-only"`
+    (pasted formatting dropped), `role="textbox"`,
+    `aria-label` "Node label". Text set through the DOM on
+    mount (read once, so a collaborator's rename doesn't
+    reset the draft), focused, whole label selected. Enter
+    commits (ignored while an IME is composing),
+    Shift+Enter inserts a line, Escape cancels, blur
+    commits. An `isDoneRef` guard reports each edit exactly
+    once, so the blur that can follow Enter/Escape
+    unmounting the editor does nothing. Label is
+    `innerText.trim()`; empty is allowed.
+    `nodrag` (dragging selects text) and `nokey` + the
+    `contenteditable` attribute (React Flow's
+    `isInputDOMNode` check) keep Backspace/Delete/arrows from
+    reaching canvas shortcuts.
+  - Commit calls `updateNodeData(id, { label })` from
+    `useReactFlow<CanvasNode, CanvasEdge>()` (typed from
+    `CanvasNodeData`), only when the label changed. In a
+    controlled flow React Flow turns that into a `replace`
+    change sent to `onNodesChange`, which Liveblocks
+    `reconcile`s into storage (`data` syncs; `selected` /
+    `measured` stay local). Cancel writes nothing, so the
+    previous label just shows again.
+  - `app/globals.css` — `--xy-resize-background-color`
+    mapped to `--primary` (matches the selected outline).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains `min-h-[1lh]`, `before:-inset-1`,
+    `whitespace-pre-wrap`, `select-text` and the resize
+    variable. Double-click on a node does not zoom the
+    canvas (draggable nodes carry `nopan`, which React
+    Flow's zoom filter skips).
+  - Not verified (needs a browser signed in with Clerk; a
+    headless-browser harness was not run): resize handles
+    on the selected node only, side vs corner resizing and
+    the 60×40 floor, resize and label sync to a
+    collaborator, text centered while typing,
+    Enter/click-outside/Escape/Shift+Enter, Backspace
+    editing text instead of deleting the node, and
+    `plaintext-only` in Firefox (supported since Firefox
+    136).
+  - Browser-checked by the owner (2026-10-10, Edge + VS Code
+    browser, two accounts): selected nodes show resize
+    handles, a resized rectangle synced to the other
+    window, and a label typed in a diamond showed centered
+    in both windows. The `[React Flow]` error002 warning
+    in the dev terminal came from hot reload swapping in
+    the edited `ShapeNode` (React Flow compares the
+    `nodeTypes` entries across renders); dev only.
+    Second check: Shift+Enter gave a three-line label in a
+    circle, centered and wrapped inside the node; the
+    diamond's edited label ("rtregd") synced to both
+    windows. The two error002 warnings were one per open
+    window after a single hot reload. Escape and
+    Backspace-while-typing not yet reported. While editing,
+    the browser's spell-check underlines words (red
+    squiggles); the spec doesn't cover it.
+
+- 15 Node Color Toolbar (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/15-NODE-COLOR-TOOLBAR.md`):
+  - `app/globals.css` — 21 node color tokens in `:root`
+    (`--node-<color>`, `--node-<color>-border`,
+    `--node-<color>-foreground` for blue, green, purple,
+    orange, red, yellow, teal), exposed in `@theme inline`
+    as `--color-node-*`. `default` reuses `--card` /
+    `--input` / `--card-foreground`; red's outline reuses
+    `--destructive`. Contrast checked with a script (WCAG,
+    oklch → sRGB): text on fill 10.1–10.6:1, outline on the
+    canvas 6.5–11.4:1, all values inside sRGB except the
+    reused `--destructive`.
+  - `lib/canvas-colors.ts` — `NODE_COLORS` now has all 8
+    colors in toolbar order, each with `label`, `fill`,
+    `stroke`, `text` and `swatch` classes written out in
+    full (Tailwind scans the file). New `isNodeColor()`;
+    `getNodeColorClasses()` uses it (unknown keys still
+    fall back to `default`).
+  - `components/canvas/node-color-toolbar.tsx` —
+    `NodeColorToolbar` (`currentColor`, `onSelectColor`):
+    React Flow `NodeToolbar` at `Position.Top`, left to its
+    default visibility (only while its node is the one
+    selected node). Pill styled like the shape panel,
+    `role="group"` `aria-label` "Node color". One `<button>`
+    per color: `aria-label` and `title` = color name,
+    `aria-pressed` on the current one, which also shows a
+    `Check` in the color's text color; Tab / Enter / Space
+    work as normal buttons. `nopan` keeps a press on a
+    swatch from panning the canvas; `nokey` keeps Space,
+    arrows and Backspace pressed on a swatch from reaching
+    React Flow (pan, move node, delete node).
+  - `components/canvas/shape-node.tsx` — renders the
+    toolbar (not while `isEditing`) as a sibling of the node
+    body, not inside it: the toolbar is portaled, but React
+    events still bubble through the React tree, so inside
+    the body a double-click on two swatches would start a
+    label edit. Picking a color calls
+    `updateNodeData(id, { color })` with the key only (no
+    write when unchanged), the same synced path as labels.
+    Selected nodes now keep their color's outline (2px
+    instead of 1.5px) instead of switching to
+    `stroke-primary`, so the outline change shows at once
+    for the person picking; the resize frame (`--primary`)
+    still marks the selection.
+  - `CONTEXT/ui-context.md` — node color palette table,
+    toolbar description, updated selected-outline rule.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains every `fill-/stroke-/text-/bg-/border-node-*`
+    class and all 21 tokens. Checked in the React Flow
+    source: clicks on the toolbar don't reach the pane's
+    deselect handler (it only acts when the pane itself is
+    the target) and a click on a swatch is a no-op for the
+    node's own select handler (already selected).
+  - Not verified (needs a browser signed in with Clerk): the
+    toolbar appearing above a selected node and hiding on
+    deselect, multi-select and while editing; colors
+    changing on click; the change reaching a collaborator;
+    keyboard use of the swatches.
+
+- 16 Edge Behavior (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/16-EDGE-BEHAVIOR.md`):
+  - `lib/canvas-types.ts` — `CanvasEdgeData` (`label`),
+    `CanvasEdge` is now `Edge<CanvasEdgeData>`, and
+    `LABELED_EDGE_TYPE` (`"labeled"`).
+  - `components/canvas/labeled-edge.tsx` — `LabeledEdge`:
+    `getBezierPath` from the edge's source/target positions
+    (so it leaves and enters through the handles the
+    connection used), `BaseEdge` with `interactionWidth` 24
+    (the invisible hit area), stroke 1.5px, 2.5px when
+    selected. Arrowhead: a closed-triangle `<marker>` per
+    edge (`markerUnits="userSpaceOnUse"`, so the thicker
+    selected stroke doesn't enlarge it) filled from
+    `--xy-edge-stroke` / `--xy-edge-stroke-selected`, so it
+    follows the selected color. Double-click on the path or
+    the label box starts editing (`isEditing` is the only
+    local state). The label sits at the path midpoint in
+    `EdgeLabelRenderer` (`rounded-md border-border bg-card
+    text-xs`, `nodrag nopan pointer-events-auto`); no box
+    when the label is empty and not being edited. Commit
+    calls `updateEdgeData(id, { label })` only when the
+    label changed: React Flow turns it into a `replace`
+    change sent to `onEdgesChange`, which Liveblocks
+    `reconcile`s into storage (checked in
+    `@liveblocks/react-flow`'s `applyEdgeChanges`; `data`
+    syncs, `selected` stays local). Edges made before this
+    feature have no `data` and read as an empty label.
+  - `components/canvas/label-editor.tsx` — renamed from
+    `node-label-editor.tsx` (`NodeLabelEditor` →
+    `LabelEditor`) so nodes and edges share it, with a new
+    `ariaLabel` prop ("Node label" / "Edge label"). Same
+    Enter / Shift+Enter / Escape / blur rules and the same
+    `isDoneRef` guard (one commit per edit). New:
+    `stopPropagation()` on keydown, because React Flow's
+    edge wrapper handles Enter/Space/Escape (select /
+    deselect the edge) and, unlike the node wrapper, does
+    not skip text fields; the label box is a React child of
+    that wrapper even though it is portaled.
+  - `components/canvas/canvas.tsx` — `edgeTypes`
+    (`labeled` → `LabeledEdge`, module level),
+    `defaultEdgeOptions` `{ type: "labeled", data: { label:
+    "" } }` (React Flow merges these into the connection
+    before calling Liveblocks' `onConnect`, which builds the
+    edge with `addEdge`; checked in both sources),
+    `isValidConnection` rejecting `source === target`, and
+    `deleteKeyCode` `["Delete", "Backspace"]` (React Flow's
+    default is Backspace only). Deletion was already wired:
+    React Flow's delete adds a deleted node's connected
+    edges and calls `onDelete`, which removes nodes and
+    edges from room storage. The delete key is ignored while
+    focus is in a `contenteditable` / `.nokey` element.
+  - `app/globals.css` — `--xy-edge-stroke` →
+    `--muted-foreground`, `--xy-edge-stroke-selected` →
+    `--primary` (also colors the line drawn while
+    connecting).
+  - `CONTEXT/ui-context.md` (Edges), `CONTEXT/architecture.md`
+    (`canvas-types.ts` contents) updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains `fill-(--xy-edge-stroke)`,
+    `fill-(--xy-edge-stroke-selected)`, `pointer-events-auto`,
+    `min-w-12`, `max-w-48` and both edge variables. Checked
+    in the React Flow source: edge wrappers carry `nopan`,
+    so double-clicking an edge does not zoom the canvas.
+  - Not verified (needs a browser signed in with Clerk; no
+    headless harness was run): connecting each side to each
+    side, self-connection refused, edge selection and the
+    hit area, label edit Enter/Escape/click-outside and the
+    single sync per edit, Delete/Backspace removing nodes
+    with their edges and syncing to a collaborator.
+  - Known: edges drawn before this feature keep React
+    Flow's default edge type (gray, no arrowhead, no
+    labels); delete and redraw them. The spec only changes
+    new connections.
+
+- 17 Canvas Ergonomics (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/17-CANVAS-ERGONOMICS.md`):
+  - `hooks/use-canvas-actions.ts` — `useCanvasActions()`:
+    `zoomIn` / `zoomOut` / `fitView` (React Flow,
+    200 ms animation) and `undo` / `redo` from Liveblocks
+    (`useUndo` / `useRedo`, the room history). Memoized so
+    the shortcut listener isn't re-attached on every render.
+  - Room history checked in `@liveblocks/react-flow`'s
+    `applyNodeChanges`: it pauses history when a drag or
+    resize starts and resumes when it ends, so a whole move
+    or resize is one undo step. Adds, deletes (`onDelete` is
+    one mutation), labels and colors (`updateNodeData` →
+    one `replace` mutation) are one step each. Selection,
+    measured size and dragging flags use `setLocal`, which
+    never enters the history. Undo only reverses this user's
+    own changes (Liveblocks history is per client).
+  - `hooks/use-canvas-shortcuts.ts` — `useCanvasShortcuts()`
+    (called in `CanvasFlow`): one `keydown` listener on
+    `document`. `+` / `=` zoom in, `-` zoom out (only without
+    Ctrl/Cmd, so the browser's own Ctrl/Cmd +/- page zoom
+    still works), Ctrl/Cmd+Z undo, Ctrl/Cmd+Y and
+    Ctrl/Cmd+Shift+Z redo; any Alt combination is ignored
+    (AltGr reports Ctrl+Alt). Skipped when the event was
+    already handled or its target is an `input`, `textarea`,
+    `select` or contenteditable element (label editors,
+    dialogs, later the chat). Handled keys `preventDefault()`.
+  - `components/canvas/canvas-controls.tsx` —
+    `CanvasControls`: React Flow `Panel` at `bottom-left`,
+    same pill as the shape panel, `role="group"`
+    `aria-label="Canvas controls"`, `nokey` (Space /
+    Backspace on a focused button don't pan or delete).
+    Buttons: zoom out, zoom in, fit view (`Maximize`), a
+    divider, undo (`Undo2`), redo (`Redo2`). Each is a Base
+    UI `Button` rendered through a shadcn `TooltipTrigger`,
+    with `aria-label` and a tooltip "Undo (Ctrl+Z)" etc.
+    (`⌘` on Apple devices). Undo/redo are disabled from
+    `useCanUndo` / `useCanRedo` with `focusableWhenDisabled`:
+    `aria-disabled`, dimmed, clicks blocked, but still
+    hoverable (tooltip) and focus isn't dropped when the
+    last undo disables the button under it.
+  - Placement: below `md` the bar is lifted above the shape
+    panel (`-translate-y-[calc(3.5rem+2px)]`), since a 375 px
+    phone can't fit both on one row (side by side needs
+    ~734 px). While the project sidebar is open, from `md`
+    up the bar slides right of it (`translate-x-[18.5rem]`,
+    animated like the sidebar), and below 83rem (where the
+    shifted bar would reach the shape panel) it is also
+    lifted. The AI sidebar is on the right, so it never
+    covers the bar except on phones, where an open sidebar
+    covers nearly the whole canvas anyway (same for the
+    project sidebar and its scrim).
+  - `components/editor/project-sidebar-context.ts` —
+    `ProjectSidebarContext` + `useProjectSidebarVisibility()`
+    (`{ isOpen }`), provided by `EditorShell`, so the canvas
+    can read the sidebar state the navbar toggles (same
+    pattern as `AiSidebarContext`).
+  - Minimap removed: `MiniMap` from `canvas.tsx` and the four
+    `--xy-minimap-*` overrides from `app/globals.css`.
+  - Added shadcn `tooltip` via the CLI
+    (`components/ui/tooltip.tsx`, Base UI; no new
+    dependencies). Its `TooltipProvider` wraps only the
+    control bar (the CLI suggests the root layout; nothing
+    else uses tooltips yet).
+  - `CONTEXT/ui-context.md` (Canvas, new Canvas control bar
+    entry) and `CONTEXT/architecture.md` (`hooks/`) updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains the placement classes
+    (`max-md:-translate-y-[…]`, `max-[83rem]:-translate-y-[…]`,
+    `md:translate-x-[18.5rem]`), `hover:not-data-disabled:bg-accent`
+    and `data-disabled:opacity-50`; no app `--xy-minimap-*`
+    overrides remain (React Flow's own `base.css` still
+    defines its defaults). A server render of a control
+    button showed `aria-label`, and when disabled
+    `aria-disabled="true"` + `data-disabled` with no
+    `disabled` attribute (still focusable).
+  - Not verified (needs a browser signed in with Clerk; no
+    headless harness was run): the buttons and shortcuts
+    themselves, undo/redo of moves, adds, deletes, resizes,
+    labels and colors, shortcuts doing nothing while typing a
+    label, tooltips, and the bar's position with the project
+    sidebar open and on a phone.
+
+- 18 Starter Templates (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/18-STARTER-TEMPLATES.md`):
+  - `lib/canvas-templates.ts` — `CanvasTemplate` (`id`,
+    `name`, one-line `description`, `nodes: CanvasNode[]`,
+    `edges: CanvasEdge[]`) and `CANVAS_TEMPLATES`:
+    Microservices (10 nodes / 10 edges), CI/CD pipeline
+    (9 / 8), Event-driven system (11 / 10), Three-tier web
+    app (9 / 8). Built with `node()` / `edge()` helpers:
+    shape names from `canvas-shapes.ts` at their default
+    sizes, color keys from `canvas-colors.ts`, columns 280
+    apart left to right, nodes placed by center, every edge
+    a `labeled` edge with a label and explicit side handles
+    (`right` → `left` unless a node sits directly below).
+    One color convention across templates (clients blue,
+    routing purple, services green, storage orange, queues
+    / checks yellow, environments teal, external / failure
+    red). `instantiateTemplate()` copies a template with ids
+    `<template node or edge id>-<randomUUID>` and rewires
+    edges to the new node ids.
+  - `components/canvas/template-preview.tsx` —
+    `TemplatePreview`: SVG with a viewBox around the nodes
+    (+24 padding), `ShapeOutline` per node in its color
+    classes, edges via React Flow's `getBezierPath` from the
+    handle sides, one arrowhead marker, non-scaling strokes.
+    No labels.
+  - `components/canvas/templates-dialog.tsx` —
+    `TemplatesDialog` on `EditorDialog` (new `className`
+    prop, merged with `cn`): wide, scrolls inside, `nokey`
+    so Delete/Backspace in the dialog don't delete selected
+    nodes behind it. Card grid (two columns from `lg`),
+    `Import` per card. On a non-empty canvas a nested
+    `EditorDialog` asks "Replace the canvas?" (Escape closes
+    only it).
+  - `hooks/use-template-import.ts` — `useTemplateImport()`:
+    one `useMutation` that deletes every edge and node in
+    `flow` storage, then calls the flow's own
+    `onNodesChange` / `onEdgesChange` with `add` changes.
+    Those are mutations too; nested Liveblocks batches join
+    the outer one (checked in `@liveblocks/core`'s
+    `batch`), so the import is one storage update for
+    collaborators and one undo step. Then `fitView()` from
+    `useCanvasActions`; React Flow queues it until the new
+    nodes are measured (checked in its `fitViewQueued`
+    logic). Only the importer's view moves.
+  - `components/editor/templates-dialog-context.ts` —
+    `TemplatesDialogContext` (`isOpen`, `setIsOpen`), owned
+    by `EditorShell`; the navbar opens it and `Canvas`
+    renders the dialog (it must be inside the room and the
+    React Flow provider), outside `<ReactFlow>` so its
+    events don't bubble into React Flow.
+  - `components/editor/editor-navbar.tsx` — `Templates`
+    button (workspaces only) in the left section, since the
+    right section is full on phones.
+  - `CONTEXT/ui-context.md` and `CONTEXT/architecture.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass; built
+    CSS has the new classes. A tsx script checked each
+    template: 6–12 nodes, valid shapes / colors / labels,
+    no dangling or unlabeled edges, edges run left to right,
+    nodes at least 40 apart, no edge label on a node or
+    another label, fresh ids on every instantiation with
+    edges rewired to them, copies don't share objects with
+    the template. Static render of every preview: all nodes and
+    edges drawn, no NaN.
+  - Browser-verified by the owner (2026-10-10, Edge + VS Code
+    browser, two accounts): the Templates button opens the
+    wide dialog with whole-diagram previews; importing Three-
+    tier web app placed it, fitted the view, and appeared in
+    the collaborator's window; undo was enabled for the
+    importer only (history is per user).
+  - Not yet checked in the browser: the replace confirmation
+    on a non-empty canvas and undo restoring the previous
+    canvas.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 13 (spec not yet in `CONTEXT/FEATURE-SPECS/`)
+- Feature 19 (cursors / presence)
 
 ## Open Questions
 
@@ -748,6 +1193,78 @@ change.
 
 ## Architecture Decisions
 
+- Template import is one Liveblocks mutation that clears
+  `flow` and adds through `useLiveblocksFlow`'s handlers.
+  Why: the spec requires one undoable, synced change, and
+  the flow's handlers stay the only code that converts nodes
+  and edges to storage. AI generation can reuse
+  `useTemplateImport`'s pattern.
+
+- Undo/redo use the Liveblocks room history (`useUndo` /
+  `useRedo`), never a local history. Why: the spec requires
+  it, and every canvas write already goes through
+  `useLiveblocksFlow`, which groups drags and resizes into
+  one history step. New canvas writes (templates, AI
+  output) should go through storage mutations too, so they
+  are undoable the same way.
+- The control bar and the keyboard shortcuts call the same
+  `useCanvasActions()`. Why: one place for zoom/fit
+  animation and undo/redo behavior, so a button and its
+  shortcut can't drift.
+- The project sidebar's open state reaches the canvas
+  through `ProjectSidebarContext`. Why: the spec says the
+  bar must not be covered by either sidebar; the project
+  sidebar floats over the canvas's left edge, so the bar
+  moves right while it is open, and the state lives in
+  `EditorShell` (the navbar toggles it).
+
+- Edge labels live in `data.label` (`CanvasEdgeData`), not
+  React Flow's top-level `label`, and are edited with
+  `updateEdgeData`. Why: the spec defines the edge data
+  type with `label`, and it uses the same synced
+  `onEdgesChange` path as node labels.
+- One `LabelEditor` serves node and edge labels. Why: the
+  commit-once rule and key handling must be identical for
+  both; two copies would drift.
+- Edge colors come from React Flow's `--xy-edge-*` variables
+  mapped to tokens in `globals.css`; the arrowhead reads the
+  same variables. Why: same rule as the other React Flow
+  colors, and the arrow matches the path in both states.
+
+- Selected nodes are marked by the resize frame, not by a
+  `stroke-primary` outline: the node keeps its color's
+  outline (thicker) while selected. Why: the color toolbar
+  only shows on a selected node, so with a primary outline
+  a picked outline color would only appear after
+  deselecting, and spec 15 requires fill, outline and text
+  to change immediately.
+- Node colors are design tokens (`--node-*` in
+  `globals.css`), and node data stores only the key. Why:
+  colors stay themeable in one place, and stored canvases
+  (snapshots, templates, AI output) never carry hex values.
+
+- Node edits go through React Flow's own APIs, not direct
+  Liveblocks mutations: `NodeResizer` emits node changes
+  and labels use `updateNodeData`, both of which reach
+  `useLiveblocksFlow`'s `onNodesChange`. Why: the flow stays
+  the single write path into room storage, and later node
+  edits (feature 15 colors) can use `updateNodeData` the
+  same way.
+
+- The AI sidebar's open state lives in `EditorShell` (via
+  `useAiSidebarState`) and reaches the workspace page through
+  `AiSidebarContext`. Why: the toggle is in the navbar
+  (shared editor layout) while the sidebar is rendered by
+  the workspace page; the layout can't pass props to the
+  page. Same pattern as `ProjectDialogsContext`.
+- "Desktop" for the AI sidebar's default is Tailwind `lg`
+  (1024 px), not `md`. Why: between 768 and ~900 px an open
+  sidebar would cover the right end of the bottom-center
+  shape panel, so tablets start closed.
+- `ShapeOutline` (`components/canvas/shape-outline.tsx`) is
+  the only shape geometry. Anything that draws a shape
+  (nodes, drag preview, later templates/thumbnails) uses
+  it.
 - Shape nodes have four `source` handles and the canvas
   uses `ConnectionMode.Loose`. Why: in React Flow's default
   strict mode a source handle only connects to a target

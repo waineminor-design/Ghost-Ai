@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { setShapeDragImage } from "@/components/canvas/shape-drag-preview";
 import {
   CANVAS_SHAPES,
   SHAPE_DRAG_MIME,
@@ -72,4 +73,5 @@ export function ShapePanel({
 function startShapeDrag(event: DragEvent<HTMLElement>, payload: ShapeDragPayload) {
   event.dataTransfer.setData(SHAPE_DRAG_MIME, JSON.stringify(payload));
   event.dataTransfer.effectAllowed = "move";
+  setShapeDragImage(event.dataTransfer, payload);
 }

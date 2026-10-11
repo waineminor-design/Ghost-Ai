@@ -40,7 +40,10 @@ paths below are relative to it.
   `components/canvas/canvas.tsx` is the React Flow canvas
   inside it.
 - `hooks/` — client hooks for dialog state, form state and
-  mutations.
+  mutations, and the canvas actions (`use-canvas-actions.ts`:
+  zoom, fit view, undo/redo through the Liveblocks room
+  history) shared by the control bar and the keyboard
+  shortcuts (`use-canvas-shortcuts.ts`).
 - `lib/` — shared utilities: `cn()`, Prisma client
   singleton, Liveblocks and Blob helpers. Database queries
   live in `server-only` data modules (e.g.
@@ -57,15 +60,23 @@ paths below are relative to it.
   holds the cached Liveblocks Node client and
   `getUserColor()` (the cursor color palette).
   `lib/canvas-types.ts` holds the canvas node/edge types
-  (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`) — the one
-  schema the canvas, storage, templates, AI generation and
-  spec generation share. `lib/canvas-shapes.ts` is the one
+  (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`,
+  `CanvasEdgeData`) and the edge type name
+  (`LABELED_EDGE_TYPE`) — the one schema the canvas,
+  storage, templates, AI generation and spec generation
+  share. `lib/canvas-shapes.ts` is the one
   shape list (name, label, default size), the `shape` node
   type name, and the drag-and-drop payload
   (`application/ghost-shape`) with its parser.
   `lib/canvas-colors.ts` maps node color keys
   (`data.color`) to design-token classes; nodes store only
-  the key.
+  the key. `lib/canvas-templates.ts` is the starter template
+  library (`CANVAS_TEMPLATES`: ordinary `CanvasNode` /
+  `CanvasEdge` lists) and `instantiateTemplate()`, which
+  copies one with fresh ids. `hooks/use-template-import.ts`
+  replaces the room's flow with a template in one
+  Liveblocks mutation (one sync, one undo step) and fits
+  the view.
 - `liveblocks.config.ts` (repo root) — the global Liveblocks
   types (Presence, UserMeta, Storage); every Liveblocks hook
   and the Node client are typed from it.
