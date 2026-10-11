@@ -26,6 +26,14 @@ export function SpecPreviewDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const [result, setResult] = useState<LoadResult | null>(null);
+  // Reopening after a failed load starts a new request: drop that failed
+  // result so the dialog shows loading, not the old error. Loaded content
+  // is kept. Done during render on the open change, as React recommends.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open && result?.specId === specId && result.spec === null) setResult(null);
+  }
   const specUrl = specId
     ? `/api/projects/${encodeURIComponent(projectId)}/specs/${encodeURIComponent(specId)}`
     : null;
