@@ -5,13 +5,13 @@ change.
 
 ## Current Phase
 
-- Feature 17 (Canvas Ergonomics) complete; awaiting the
-  owner's browser check
+- Feature 18 (Starter Templates) complete; owner's browser
+  check passed for the dialog, import, fit view and sync
 
 ## Current Goal
 
-- Owner's browser check of feature 17, then feature 18
-  (Starter Templates)
+- Owner's check of the replace confirmation and undo
+  after an import, then feature 19
 
 ## Completed
 
@@ -1062,13 +1062,87 @@ change.
     label, tooltips, and the bar's position with the project
     sidebar open and on a phone.
 
+- 18 Starter Templates (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/18-STARTER-TEMPLATES.md`):
+  - `lib/canvas-templates.ts` — `CanvasTemplate` (`id`,
+    `name`, one-line `description`, `nodes: CanvasNode[]`,
+    `edges: CanvasEdge[]`) and `CANVAS_TEMPLATES`:
+    Microservices (10 nodes / 10 edges), CI/CD pipeline
+    (9 / 8), Event-driven system (11 / 10), Three-tier web
+    app (9 / 8). Built with `node()` / `edge()` helpers:
+    shape names from `canvas-shapes.ts` at their default
+    sizes, color keys from `canvas-colors.ts`, columns 280
+    apart left to right, nodes placed by center, every edge
+    a `labeled` edge with a label and explicit side handles
+    (`right` → `left` unless a node sits directly below).
+    One color convention across templates (clients blue,
+    routing purple, services green, storage orange, queues
+    / checks yellow, environments teal, external / failure
+    red). `instantiateTemplate()` copies a template with ids
+    `<template node or edge id>-<randomUUID>` and rewires
+    edges to the new node ids.
+  - `components/canvas/template-preview.tsx` —
+    `TemplatePreview`: SVG with a viewBox around the nodes
+    (+24 padding), `ShapeOutline` per node in its color
+    classes, edges via React Flow's `getBezierPath` from the
+    handle sides, one arrowhead marker, non-scaling strokes.
+    No labels.
+  - `components/canvas/templates-dialog.tsx` —
+    `TemplatesDialog` on `EditorDialog` (new `className`
+    prop, merged with `cn`): wide, scrolls inside, `nokey`
+    so Delete/Backspace in the dialog don't delete selected
+    nodes behind it. Card grid (two columns from `lg`),
+    `Import` per card. On a non-empty canvas a nested
+    `EditorDialog` asks "Replace the canvas?" (Escape closes
+    only it).
+  - `hooks/use-template-import.ts` — `useTemplateImport()`:
+    one `useMutation` that deletes every edge and node in
+    `flow` storage, then calls the flow's own
+    `onNodesChange` / `onEdgesChange` with `add` changes.
+    Those are mutations too; nested Liveblocks batches join
+    the outer one (checked in `@liveblocks/core`'s
+    `batch`), so the import is one storage update for
+    collaborators and one undo step. Then `fitView()` from
+    `useCanvasActions`; React Flow queues it until the new
+    nodes are measured (checked in its `fitViewQueued`
+    logic). Only the importer's view moves.
+  - `components/editor/templates-dialog-context.ts` —
+    `TemplatesDialogContext` (`isOpen`, `setIsOpen`), owned
+    by `EditorShell`; the navbar opens it and `Canvas`
+    renders the dialog (it must be inside the room and the
+    React Flow provider), outside `<ReactFlow>` so its
+    events don't bubble into React Flow.
+  - `components/editor/editor-navbar.tsx` — `Templates`
+    button (workspaces only) in the left section, since the
+    right section is full on phones.
+  - `CONTEXT/ui-context.md` and `CONTEXT/architecture.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass; built
+    CSS has the new classes. A tsx script checked each
+    template: 6–12 nodes, valid shapes / colors / labels,
+    no dangling or unlabeled edges, edges run left to right,
+    nodes at least 40 apart, no edge label on a node or
+    another label, fresh ids on every instantiation with
+    edges rewired to them, copies don't share objects with
+    the template. Static render of every preview: all nodes and
+    edges drawn, no NaN.
+  - Browser-verified by the owner (2026-10-10, Edge + VS Code
+    browser, two accounts): the Templates button opens the
+    wide dialog with whole-diagram previews; importing Three-
+    tier web app placed it, fitted the view, and appeared in
+    the collaborator's window; undo was enabled for the
+    importer only (history is per user).
+  - Not yet checked in the browser: the replace confirmation
+    on a non-empty canvas and undo restoring the previous
+    canvas.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 18 (Starter Templates)
+- Feature 19 (cursors / presence)
 
 ## Open Questions
 
@@ -1118,6 +1192,13 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Template import is one Liveblocks mutation that clears
+  `flow` and adds through `useLiveblocksFlow`'s handlers.
+  Why: the spec requires one undoable, synced change, and
+  the flow's handlers stay the only code that converts nodes
+  and edges to storage. AI generation can reuse
+  `useTemplateImport`'s pattern.
 
 - Undo/redo use the Liveblocks room history (`useUndo` /
   `useRedo`), never a local history. Why: the spec requires

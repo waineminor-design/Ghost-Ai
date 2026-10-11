@@ -70,7 +70,13 @@ paths below are relative to it.
   (`application/ghost-shape`) with its parser.
   `lib/canvas-colors.ts` maps node color keys
   (`data.color`) to design-token classes; nodes store only
-  the key.
+  the key. `lib/canvas-templates.ts` is the starter template
+  library (`CANVAS_TEMPLATES`: ordinary `CanvasNode` /
+  `CanvasEdge` lists) and `instantiateTemplate()`, which
+  copies one with fresh ids. `hooks/use-template-import.ts`
+  replaces the room's flow with a template in one
+  Liveblocks mutation (one sync, one undo step) and fits
+  the view.
 - `liveblocks.config.ts` (repo root) — the global Liveblocks
   types (Presence, UserMeta, Storage); every Liveblocks hook
   and the Node client are typed from it.

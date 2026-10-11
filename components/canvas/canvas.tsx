@@ -18,7 +18,9 @@ import { CanvasControls } from "@/components/canvas/canvas-controls";
 import { LabeledEdge } from "@/components/canvas/labeled-edge";
 import { ShapeNode } from "@/components/canvas/shape-node";
 import { ShapePanel } from "@/components/canvas/shape-panel";
+import { TemplatesDialog } from "@/components/canvas/templates-dialog";
 import { useCanvasShortcuts } from "@/hooks/use-canvas-shortcuts";
+import { useTemplateImport } from "@/hooks/use-template-import";
 import { DEFAULT_NODE_COLOR } from "@/lib/canvas-colors";
 import {
   SHAPE_DRAG_MIME,
@@ -56,7 +58,8 @@ function isNotSelfConnection(connection: CanvasEdge | Connection) {
 // The shared React Flow canvas. Nodes and edges live in the room's
 // Liveblocks storage, so every change syncs to everyone in the room.
 // Theme colors come from the --xy-* token mapping in app/globals.css.
-// Must render inside a RoomProvider and a Suspense boundary.
+// Also renders the templates dialog, since importing writes to the room.
+// Must render inside a RoomProvider, a Suspense boundary and EditorShell.
 export function Canvas() {
   return (
     <ReactFlowProvider>
@@ -70,6 +73,7 @@ function CanvasFlow() {
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const { screenToFlowPosition } = useReactFlow<CanvasNode, CanvasEdge>();
   useCanvasShortcuts();
+  const importTemplate = useTemplateImport({ onNodesChange, onEdgesChange });
   const containerRef = useRef<HTMLDivElement>(null);
   // Orders this client's own nodes; the random part keeps ids unique
   // across clients that add the same shape in the same millisecond.
@@ -154,6 +158,12 @@ function CanvasFlow() {
         <ShapePanel onAddShape={addShapeAtViewportCenter} />
         <CanvasControls />
       </ReactFlow>
+      {/* Outside <ReactFlow>: the dialog is portaled, but React events
+          still bubble through the React tree. */}
+      <TemplatesDialog
+        isCanvasEmpty={nodes.length === 0 && edges.length === 0}
+        onImport={importTemplate}
+      />
     </div>
   );
 }

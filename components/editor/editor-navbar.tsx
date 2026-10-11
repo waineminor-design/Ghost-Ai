@@ -1,6 +1,7 @@
 import { Suspense, use } from "react";
 import { UserButton } from "@clerk/nextjs";
 import {
+  LayoutTemplate,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -19,6 +20,7 @@ interface EditorNavbarProps {
   onToggleSidebar: () => void;
   isAiSidebarOpen: boolean;
   onToggleAiSidebar: () => void;
+  onOpenTemplates: () => void;
   projectsPromise: Promise<EditorProjects>;
 }
 
@@ -27,6 +29,7 @@ export function EditorNavbar({
   onToggleSidebar,
   isAiSidebarOpen,
   onToggleAiSidebar,
+  onOpenTemplates,
   projectsPromise,
 }: EditorNavbarProps) {
   const ToggleIcon = isSidebarOpen ? PanelLeftClose : PanelLeftOpen;
@@ -43,6 +46,12 @@ export function EditorNavbar({
         >
           <ToggleIcon className="size-5" />
         </Button>
+        <Suspense>
+          <TemplatesAction
+            projectsPromise={projectsPromise}
+            onOpenTemplates={onOpenTemplates}
+          />
+        </Suspense>
       </div>
       <div className="flex min-w-0 items-center justify-center">
         <Suspense>
@@ -73,6 +82,27 @@ function ProjectName({
   if (!project) return null;
 
   return <h1 className="truncate text-sm font-medium">{project.name}</h1>;
+}
+
+// Opens the starter templates dialog for the open workspace; nothing
+// outside a workspace. In the left section because the right one is full
+// on phones. Icon-only below `sm`.
+function TemplatesAction({
+  projectsPromise,
+  onOpenTemplates,
+}: {
+  projectsPromise: Promise<EditorProjects>;
+  onOpenTemplates: () => void;
+}) {
+  const project = useCurrentProject(projectsPromise);
+  if (!project) return null;
+
+  return (
+    <Button variant="ghost" size="sm" onClick={onOpenTemplates} className="max-sm:pr-1.5">
+      <LayoutTemplate data-icon="inline-start" />
+      <span className="max-sm:sr-only">Templates</span>
+    </Button>
+  );
 }
 
 // Actions for the open workspace; nothing outside a workspace.

@@ -116,11 +116,14 @@ app-specific wrappers in feature folders instead (e.g.
   `bg-sidebar`, `shadow-lg`). Neither takes width from the
   canvas; closed, each slides fully off-screen and is
   `inert`. The AI sidebar starts open from `lg` up and
-  closed below. In a project workspace the navbar center
-  shows the project name and the right section holds the
-  AI sidebar toggle (`PanelRightOpen` / `PanelRightClose`)
-  and `Share` (icon only below `sm`) before the
-  `UserButton`.
+  closed below. In a project workspace the navbar left
+  section holds `Templates` (`LayoutTemplate`, ghost, icon
+  only below `sm`) after the project sidebar toggle, the
+  center shows the project name and the right section holds
+  the AI sidebar toggle (`PanelRightOpen` /
+  `PanelRightClose`) and `Share` (icon only below `sm`)
+  before the `UserButton`. `Templates` sits on the left
+  because the right section is full on a 375 px phone.
 - Canvas: React Flow (`colorMode="dark"`) fills the
   workspace, with a dot
   background and the canvas control bar (no minimap).
@@ -207,6 +210,18 @@ app-specific wrappers in feature folders instead (e.g.
   only), and `Copy link` in the footer ("Copied!" for ~2 s).
   Users without a Clerk profile show the email next to a
   generic `UserRound` avatar (shadcn `Avatar`).
+- Templates dialog: `EditorDialog` widened to
+  `min(80rem, 100% - 4rem)` from `sm`, at most the screen
+  height, the card list scrolling inside it. Cards
+  (`rounded-lg`, `bg-card`, `border-border`) in one column,
+  two from `lg`: a `5:2` preview (`bg-background`) on top,
+  then name, one-line description and an `Import` button.
+  The preview is an SVG of the template's real nodes and
+  edges, drawn with `ShapeOutline`, the node color classes
+  and React Flow's bezier path, with non-scaling strokes and
+  no labels (too small to read at that scale). Importing
+  over a non-empty canvas opens a nested "Replace the
+  canvas?" dialog (Cancel + destructive `Replace canvas`).
 - Auth pages: 50/50 split — a branded colored panel on one
   side, the Clerk form on the other.
 
