@@ -683,6 +683,13 @@ change.
     HTML5 drag-and-drop does not work on touch screens, and
     Firefox has historically not started drags from
     `<button draggable>`; check Firefox in the browser test.
+  - Browser-verified by the owner (2026-10-10, Edge + VS Code
+    browser, two Clerk accounts): canvas connects via
+    `/api/liveblocks-auth` (200); shape panel renders; a
+    diamond dropped by the owner appeared for the
+    collaborator in real time. Each user keeps their own
+    viewport, so the same node sits at different screen
+    positions. Firefox and edge connections not checked.
 
 ## In Progress
 
