@@ -2059,6 +2059,11 @@ change.
     `trigger:dev`): a real `spec-generator` run saving its
     file and row, the routes' signed-in 404s and data, the
     browser download, and `specsUpdatedAt` in the room.
+  - Browser-verified by the owner (2026-10-11, Edge +
+    InPrivate, two accounts): real runs saved their files
+    and rows (one ran on the fallback model), both runs
+    were listed with their starter's name, and the download
+    saved `ai-test-technical-spec.md`.
 - 30 Spec UI Integration (2026-10-11,
   spec: `CONTEXT/FEATURE-SPECS/30-SPEC-UI-INTEGRATION.md`):
   - Installed `react-markdown` ^10.1.0 and `remark-gfm`
@@ -2144,6 +2149,15 @@ change.
     errors. Not tested offline: the follower (needs
     Trigger.dev's realtime API) and the panel's room reads
     (need a Liveblocks room).
+  - Browser-verified by the owner (2026-10-11, Edge +
+    InPrivate, two accounts): Generate showed "Writing the
+    spec", including "(trying another model)" on a
+    fallback; the new spec appeared in both windows' lists
+    without a reload; the preview opened with the spec's
+    title; Download saved the file. Two people can each
+    start a spec run at once (unlike design runs); each
+    produced its own spec. Not yet checked: the
+    empty-canvas button.
 
 ## In Progress
 
@@ -2151,7 +2165,9 @@ change.
 
 ## Next Up
 
-- None planned yet.
+- Deploy: Vercel (from `main`), production Liveblocks and
+  Trigger.dev keys, `npx trigger deploy` with the task
+  keys set in Trigger.dev's Production environment.
 
 ## Open Questions
 
