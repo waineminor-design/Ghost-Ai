@@ -170,3 +170,62 @@ export async function deleteProject(
     throw error;
   }
 }
+
+const collaboratorSelect = {
+  id: true,
+  email: true,
+  createdAt: true,
+} satisfies Prisma.ProjectCollaboratorSelect;
+
+export type CollaboratorRecord = Prisma.ProjectCollaboratorGetPayload<{
+  select: typeof collaboratorSelect;
+}>;
+
+// Oldest first, so the share list keeps invite order.
+export async function listCollaborators(
+  projectId: string,
+): Promise<CollaboratorRecord[]> {
+  return prisma.projectCollaborator.findMany({
+    where: { projectId },
+    select: collaboratorSelect,
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+// `email` must already be normalized (lib/collaborators.ts), so the
+// (projectId, email) unique index also catches case variants. Returns
+// null when the email is already a collaborator. Callers check that the
+// signed-in user owns the project first.
+export async function addCollaborator(
+  projectId: string,
+  email: string,
+): Promise<CollaboratorRecord | null> {
+  try {
+    return await prisma.projectCollaborator.create({
+      data: { projectId, email },
+      select: collaboratorSelect,
+    });
+  } catch (error) {
+    if (isPrismaError(error, "P2002")) return null;
+    throw error;
+  }
+}
+
+// Ownership is part of the write filter, as in deleteProject. Returns
+// false when the collaborator does not belong to a project `ownerId`
+// owns.
+export async function removeCollaborator(
+  projectId: string,
+  ownerId: string,
+  collaboratorId: string,
+): Promise<boolean> {
+  try {
+    await prisma.projectCollaborator.delete({
+      where: { id: collaboratorId, projectId, project: { ownerId } },
+    });
+    return true;
+  } catch (error) {
+    if (isPrismaError(error, "P2025")) return false;
+    throw error;
+  }
+}

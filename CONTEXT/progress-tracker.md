@@ -5,11 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 08 complete; Feature 09 (Share Dialog) next
+- Feature 09 (Share Dialog) complete; browser check with two
+  Clerk accounts pending
 
 ## Current Goal
 
-- Awaiting go-ahead for feature 09
+- Owner browser-checks feature 09, then the next spec
 
 ## Completed
 
@@ -405,13 +406,89 @@ change.
     + highlight. No canvas, Liveblocks, chat or sharing
     logic added.
 
+- 09 Share Dialog (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/09-SHARE-DIALOG.md`):
+  - `lib/collaborators.ts` (client-safe) — `normalizeEmail()`
+    (trim + lowercase), `isValidEmail()` (one `@`, no
+    whitespace, dot in the domain, max 254 chars) and the
+    response types `MemberProfile`, `CollaboratorProfile`,
+    `ProjectMembers`.
+  - `lib/user-profiles.ts` (`server-only`) — Clerk backend
+    lookups: `getProfilesByEmail()` (`users.getUserList` by
+    email, batched by 100, every address of a user mapped)
+    and `getProfileByUserId()` for the owner (`getUserList`
+    by id, so a deleted user yields nulls instead of a
+    throw). Name = `fullName ?? username`, avatar =
+    `imageUrl`. A Clerk API failure is logged and degrades
+    to emails only rather than failing the request.
+  - `lib/project-data.ts` — `listCollaborators()` (oldest
+    first), `addCollaborator()` (null on P2002 → 409) and
+    `removeCollaborator()` (owner id in the delete filter,
+    like `deleteProject`; false on P2025 → 404).
+  - Routes (all via `getCurrentIdentity` +
+    `getProjectAccess`; order 401 → body 400 → 404 → 403):
+    `GET /api/projects/[projectId]/collaborators` →
+    `{ owner, collaborators }`; `POST` (owner only)
+    `{ email }` → 400 invalid / own email, 409 duplicate,
+    201 enriched collaborator; `DELETE
+    /api/projects/[projectId]/collaborators/[collaboratorId]`
+    (owner only) → 204. No access or unknown project → 404,
+    collaborator invite/remove → 403.
+  - `lib/api-client.ts` — `sendJsonRequest()` (moved out of
+    `use-project-dialogs.ts`, now with an `AbortSignal`) and
+    `requestErrorMessage()`; the project dialogs hook uses it
+    unchanged in behavior.
+  - `hooks/use-project-share.ts` — `useProjectShare()` owns
+    open state, members, invite email + validity, inviting /
+    removing / loading state, the inline error and copy-link
+    status. The list loads when the dialog opens; requests
+    share one `AbortController` that is aborted on close and
+    unmount, so late responses never touch a closed dialog.
+    Copy link writes `<origin>/editor/<id>`; "Copied!" for
+    2 s (timer cleared on close/unmount); a failed or missing
+    `navigator.clipboard` shows an inline error instead.
+  - `components/editor/share-dialog.tsx` — on `EditorDialog`:
+    owner-only email + `Invite` (disabled while invalid or a
+    request is pending), "People with access" list (owner
+    first with an `Owner` badge, then collaborators; remove
+    buttons owner-only), `Copy link` in the footer.
+    `RequestError` is now exported from `project-dialogs.tsx`
+    and reused here.
+  - `components/editor/editor-navbar.tsx` — `Share` opens the
+    dialog. `ShareAction` is keyed by project id, so
+    switching workspaces resets share state. `isOwner` comes
+    from the layout's `currentUserId` (display only).
+  - Added shadcn `avatar` via the CLI
+    (`components/ui/avatar.tsx`; no new dependencies).
+  - Verified: `tsc`, `eslint`, `npm run build` pass (new
+    routes are `ƒ`). A script ran the real route handlers
+    against the database with Clerk's `auth()`,
+    `currentUser()` and `clerkClient()` stubbed (35 checks,
+    all pass): 401 signed out; 400 for invalid JSON, array
+    body, missing / non-string / malformed / too-long email
+    and the owner's own email in another case; 201 stores
+    `friend@example.com` from `"  Friend@EXAMPLE.com "` with
+    name + avatar; 409 for a case variant; unknown Clerk user
+    → email only; collaborator GET 200 but POST/DELETE 403
+    (row kept); stranger and unknown project → 404; a
+    collaborator id from another project → 404; Clerk outage
+    → 200 with emails only; owner DELETE 204, then the removed
+    user gets 404. Test rows deleted. Against `next start`,
+    signed-out GET/POST/DELETE return 401 JSON.
+  - Not verified (needs a browser and two Clerk accounts):
+    the dialog itself, the invited user seeing the project
+    under `Shared` and opening it, the collaborator view
+    without controls, Access Denied after removal, and the
+    clipboard paths.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 09 (Share Dialog)
+- Browser check of feature 09 (two Clerk accounts), then
+  feature 10 (no spec yet)
 
 ## Open Questions
 

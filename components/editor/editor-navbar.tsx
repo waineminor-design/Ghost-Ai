@@ -1,9 +1,11 @@
-import { Suspense } from "react";
+import { Suspense, use } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { PanelLeftClose, PanelLeftOpen, Share2 } from "lucide-react";
 
+import { ShareDialog } from "@/components/editor/share-dialog";
 import { Button } from "@/components/ui/button";
 import { useCurrentProject } from "@/hooks/use-current-project";
+import { useProjectShare } from "@/hooks/use-project-share";
 import type { EditorProjects } from "@/lib/projects";
 
 interface EditorNavbarProps {
@@ -59,20 +61,42 @@ function ProjectName({
   return <h1 className="truncate text-sm font-medium">{project.name}</h1>;
 }
 
-// Actions for the open workspace. `Share` is a placeholder until the
-// share dialog exists.
+// Actions for the open workspace; nothing outside a workspace.
 function WorkspaceActions({
   projectsPromise,
 }: {
   projectsPromise: Promise<EditorProjects>;
 }) {
+  const { currentUserId } = use(projectsPromise);
   const project = useCurrentProject(projectsPromise);
   if (!project) return null;
 
+  // Keyed so switching projects starts with fresh share state.
   return (
-    <Button variant="outline" size="sm">
-      <Share2 data-icon="inline-start" />
-      Share
-    </Button>
+    <ShareAction
+      key={project.id}
+      projectId={project.id}
+      isOwner={project.ownerId === currentUserId}
+    />
+  );
+}
+
+function ShareAction({
+  projectId,
+  isOwner,
+}: {
+  projectId: string;
+  isOwner: boolean;
+}) {
+  const share = useProjectShare(projectId);
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={share.openDialog}>
+        <Share2 data-icon="inline-start" />
+        Share
+      </Button>
+      <ShareDialog share={share} isOwner={isOwner} />
+    </>
   );
 }

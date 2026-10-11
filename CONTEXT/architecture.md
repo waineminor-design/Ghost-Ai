@@ -43,7 +43,13 @@ paths below are relative to it.
   `lib/project-data.ts`) that route handlers and server
   components both call. `lib/project-access.ts` resolves
   the signed-in identity and whether it may open a project
-  (owner or collaborator).
+  (owner or collaborator). `lib/user-profiles.ts`
+  (`server-only`) looks up Clerk profiles (name, avatar) for
+  collaborator emails and the owner. `lib/collaborators.ts`
+  holds the email rules (trim + lowercase, validation) and
+  share response types used by both server and client.
+  `lib/api-client.ts` is the client helper for calling the
+  JSON route handlers.
 - `prisma/` — Prisma schema, one file per model under
   `prisma/models/`, and migrations.
   `prisma.config.ts` (repo root) points the CLI at it and
@@ -86,6 +92,11 @@ Hybrid storage. The database stays lean.
 - The owner can add collaborators by email. Collaborators
   can open and edit the canvas; only the owner can rename,
   delete or manage collaborators.
+- Collaborator emails are stored trimmed and lowercased and
+  matched against the user's primary Clerk email. Collaborator
+  routes return 404 to users without access (the project's
+  existence is not revealed) and 403 to collaborators for
+  owner-only actions.
 - A Liveblocks room token is issued only after verifying
   that the requesting user is the owner or a collaborator
   of that project.
