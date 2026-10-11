@@ -480,6 +480,18 @@ change.
     under `Shared` and opening it, the collaborator view
     without controls, Access Denied after removal, and the
     clipboard paths.
+  - Browser-verified by the owner with two Clerk accounts
+    (2026-10-10): owner invited the second account's email;
+    the dialog listed the owner (Owner badge) and the
+    collaborator with their Clerk name; the collaborator saw
+    the project under `Shared`, opened the workspace, and got
+    the view-only share dialog (no invite box, no remove
+    buttons). Removal → Access Denied not yet re-checked in
+    the browser (covered by the API check above).
+  - Dev note: after features 08–09 the running `next dev`
+    served a stale `lib/project-data.ts` ("findAccessibleProject
+    is not a function") while `tsc` and `next build` passed.
+    Fix: stop the dev server, delete `.next/`, restart.
 
 ## In Progress
 
