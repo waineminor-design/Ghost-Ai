@@ -50,7 +50,9 @@ paths below are relative to it.
   mutations, and the canvas actions (`use-canvas-actions.ts`:
   zoom, fit view, undo/redo through the Liveblocks room
   history) shared by the control bar and the keyboard
-  shortcuts (`use-canvas-shortcuts.ts`).
+  shortcuts (`use-canvas-shortcuts.ts`), and the AI
+  Architect chat's local state (`use-ai-chat.ts`, owned by
+  the AI sidebar; no AI calls or persistence yet).
 - `lib/` — shared utilities: `cn()`, Prisma client
   singleton, Liveblocks and Blob helpers. Database queries
   live in `server-only` data modules (e.g.

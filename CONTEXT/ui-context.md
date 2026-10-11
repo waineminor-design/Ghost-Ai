@@ -137,6 +137,26 @@ app-specific wrappers in feature folders instead (e.g.
   canvas area shows a centered spinner and "Connecting to
   room…"; a failed connection shows a centered
   `TriangleAlert` (`text-destructive`) and a short message.
+- AI sidebar: a header with shadcn `Tabs` (`AI Architect`
+  with `Sparkles`, `Specs` with `FileText`, full-width list).
+  AI Architect: messages in a `ScrollArea` that fills the
+  space above the composer and scrolls to the newest; user
+  bubbles right-aligned (`bg-primary`), assistant bubbles
+  left-aligned (`bg-muted`) after a small round `Sparkles`
+  icon (`bg-sidebar-accent`); bubbles `rounded-lg`, `text-sm`,
+  at most 85% wide. While empty: a centered `Sparkles`
+  circle, the intro "Describe a system and I'll design it on
+  the canvas" and outline starter-prompt buttons that fill
+  the composer. Composer pinned at the bottom
+  (`border-t`): a one-line `Textarea` that grows to six
+  lines and then scrolls, and an icon-only send button
+  (`ArrowUp`, disabled while the text is blank). Enter
+  sends, Shift+Enter adds a line. Specs: a short line of
+  copy, a full-width `Generate spec` button (disabled, with
+  "Spec generation is coming soon."), and an example spec
+  card (`rounded-lg`, `bg-card`): `FileText` + title,
+  "Generated" with a muted bar for the date, muted skeleton
+  lines and a disabled outline `Download` button.
 - Canvas control bar: the same pill as the shape panel
   (`rounded-full`, `bg-card`, `border-border`, `shadow-lg`)
   at the bottom-left of the canvas: zoom out, zoom in, fit

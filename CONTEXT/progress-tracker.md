@@ -5,15 +5,16 @@ change.
 
 ## Current Phase
 
-- Feature 19 (Presence: Avatars and Cursors) built; `tsc`,
-  `eslint` and `npm run build` pass. Not yet checked in the
-  browser.
+- Feature 20 (AI Sidebar Shell) built; `tsc`, `eslint`,
+  `npm run build` and a scripted DOM test pass. Not yet
+  checked in the browser.
 
 ## Current Goal
 
-- Owner's two-account browser check of feature 19 (cursors,
-  avatar stack, leaving), plus the feature 18 replace
-  confirmation and undo still pending, then feature 20
+- Owner's browser check of feature 20, plus the feature 19
+  two-account check (cursors, avatar stack, leaving) and the
+  feature 18 replace confirmation and undo still pending,
+  then feature 21
 
 ## Completed
 
@@ -1198,13 +1199,89 @@ change.
     `not-first:-ml-2`, `z-5`, …). Not yet checked with two
     users in the browser.
 
+- 20 AI Sidebar Shell (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/20-AI-SIDEBAR-SHELL.md`):
+  UI only; no AI calls, API routes or persistence.
+  - `hooks/use-ai-chat.ts` — `useAiChat()`: `messages`
+    (`AiChatMessage`: `id`, `role` user/assistant,
+    `content`), `draft`, `setDraft`, `canSend` (false for
+    blank text) and `send()`, which appends the trimmed user
+    message plus the placeholder reply "AI design generation
+    is coming soon." and clears the draft. Called in
+    `AiSidebar`, not in the tab panel: Base UI unmounts
+    inactive tab panels, and the chat and draft must survive
+    switching tabs. Local state only, so it resets when the
+    workspace remounts.
+  - `components/editor/ai-sidebar.tsx` — same floating,
+    collapsible panel and navbar toggle as feature 13;
+    `aria-label` is now "AI sidebar". Header holds shadcn
+    `Tabs` (`AI Architect` / `Specs`, Lucide icons, tab list
+    `aria-label` "AI sidebar sections"). `nokey` on the
+    panel: React Flow ignores keys pressed anywhere in it
+    (Space / Backspace on a focused sidebar button don't pan
+    or delete). Each panel has `data-ending-style:hidden`:
+    Base UI keeps the panel being left mounted (inert) until
+    its exit transition ends, and without this both panels
+    would share the height for a frame.
+  - `components/editor/ai-chat-panel.tsx` — empty state
+    (intro + four starter-prompt buttons that fill the
+    composer and focus it) or the message list: `ScrollArea`
+    filling the space above the composer, `role="log"`,
+    user bubbles right, assistant bubbles left with a small
+    `Sparkles` icon (`role="img"`, "AI Architect"). New
+    messages scroll the ScrollArea's own viewport to the
+    bottom (smooth), not `scrollIntoView`, which could also
+    scroll the editor around it.
+  - `components/editor/ai-chat-composer.tsx` — shadcn
+    `Textarea` (`rows={1}`) + icon-only send button
+    (`ArrowUp`, `aria-label` "Send message", disabled while
+    blank). Enter sends (not during IME composition),
+    Shift+Enter adds a line; the form's submit also sends.
+    Auto-grows by setting its height from `scrollHeight` in
+    a layout effect (`field-sizing-fixed`, so it works in
+    browsers without `field-sizing: content`), capped at
+    `max-h-[calc(6lh+1rem+2px)]` (six lines + padding +
+    border), then scrolls. Exposes `focus()` through a ref
+    handle for the starter prompts. Canvas shortcuts already
+    skip keys typed in a textarea (`useCanvasShortcuts` and
+    React Flow's `isInputDOMNode`), so no extra guard.
+  - `components/editor/ai-specs-panel.tsx` — short intro,
+    disabled `Generate spec` button described by "Spec
+    generation is coming soon." (no toast library is
+    installed, so the disabled state carries it), and an
+    example spec card: title, "Generated" with a muted bar
+    standing in for the date (a real date would differ
+    between the server render and the client), five
+    skeleton lines and a disabled `Download` button.
+  - `CONTEXT/ui-context.md` (AI sidebar entry) and
+    `CONTEXT/architecture.md` (`hooks/`) updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass; built
+    CSS has the new classes (`max-h-[calc(6lh+1rem+2px)]`,
+    `field-sizing-fixed`, `wrap-break-word`,
+    `data-ending-style:hidden`, …). A scripted test (jsdom
+    in a scratch folder, not added to the project) rendered
+    the real `AiSidebar` and passed 28 checks: both tabs and
+    switching, four chips filling and focusing the composer,
+    send disabled for empty and whitespace, Enter sends,
+    Shift+Enter and IME Enter don't, send button sends
+    trimmed multi-line text, the user + placeholder bubbles
+    and their alignment, scroll-to-newest called, the Specs
+    tab's disabled button, linked note and example card,
+    chat and draft surviving a tab switch, and React Flow's
+    key guard treating the composer and sidebar buttons as
+    ignored.
+  - Not verified (needs a browser signed in with Clerk): the
+    look, the textarea growing to six lines then scrolling,
+    smooth scrolling, and typing `-`, `+`, Backspace or
+    Ctrl+Z in the composer with the canvas focused before.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 20 (AI sidebar shell)
+- Feature 21 (canvas autosave)
 
 ## Open Questions
 
