@@ -5,20 +5,117 @@ change.
 
 ## Current Phase
 
-- Feature 27 (Design Agent Frontend) built; `tsc`,
-  `eslint`, `npm run build` pass and the run-tracking hook
-  passed offline tests. The live check (a real design run
-  in two browsers) still needs the owner. Features 25 and
-  26's live checks are also still pending; feature 27's
-  check covers most of them.
+- Feature 30 (Spec UI Integration) built: the Specs tab
+  generates a spec from the canvas with live progress, lists
+  the project's specs (refreshed for everyone through the
+  room), previews one in a wide dialog and downloads it.
+  `tsc`, `eslint`, `npm run build` pass and 42 offline
+  checks pass. The live checks need the owner (below).
+- Feature 29 (Spec Persistence and Download) built: the
+  `ProjectSpec` model and migration (applied), saving in the
+  `spec-generator` task and the three spec routes. `tsc`,
+  `eslint`, `npm run build` pass, a storage round trip
+  passed against the real Blob store and database, and the
+  routes answer 401 signed out. The signed-in checks need
+  the owner. Feature 28's live checks are still open too.
 - **Owner: restart both `npm run dev` and
   `npm run trigger:dev`** (Ctrl+C in each, then start
-  again) so they pick up the new code. A new package
-  (`@trigger.dev/react-hooks`) was installed.
+  again). `npm run dev` must restart because the database
+  gained a table: until then it uses the old Prisma client
+  and the spec routes fail. `trigger:dev` must restart to
+  pick up the task change.
 
 ## Current Goal
 
-- Owner runs feature 27's check: open the same project in
+- Owner runs feature 30's check. Restart `npm run dev`
+  first (Ctrl+C, then `npm run dev` again: new packages were
+  installed), and keep `npm run trigger:dev` running. Open
+  a project you own with something on the canvas
+  (`http://localhost:3001/editor/<id>`), open the AI sidebar
+  and click the `Specs` tab.
+  1. Click `Generate spec`. Expected: the button greys out,
+     a spinner row shows "Reading the canvas", then "Writing
+     the spec"; after a minute or two the preview window
+     opens by itself with the new spec, and the spec appears
+     at the top of the list ("just now · by <your name>").
+  2. In the preview: it fills most of the screen, the spec
+     scrolls inside it, and headings, bullet lists and any
+     tables look tidy in the dark theme. Close it with the X
+     or Escape.
+  3. Click `Download` (in the preview footer, or on a row).
+     Expected: the browser saves a file like
+     `my-project-technical-spec.md`.
+  4. Two people: open the same project in a second browser
+     (e.g. a private window signed in as a collaborator),
+     Specs tab open. Generate in the first window. Expected:
+     the new spec appears in the second window's list
+     without reloading (only the first window shows the
+     spinner and opens the preview).
+  5. Empty canvas: in a project with nothing on the canvas,
+     `Generate spec` is greyed out with "Add something to
+     the canvas first" under it, and the list says "No specs
+     yet — generate one from your diagram".
+  6. Throughout: F12 → Console shows no "missing access
+     token" errors.
+  This also covers most of feature 28's and 29's console
+  checks below (generate, list, preview, download).
+- Owner runs feature 29's check (after the restart above),
+  in a project you own with something on the canvas
+  (`http://localhost:3001/editor/<id>`), F12, Console tab:
+  1. Generate a spec: run
+     `fetch("/api/ai/spec", { method: "POST", body: JSON.stringify({ projectId: location.pathname.split("/").pop() }) }).then(r => r.json().then(b => console.log(r.status, b)))`.
+     Expected `202 { runId: "run_…" }`. In the Trigger.dev
+     dashboard the `spec-generator` run finishes with the
+     output `{ specId, title }` (no Markdown any more).
+  2. List: run
+     `fetch(location.pathname.replace("/editor/", "/api/projects/") + "/specs").then(r => r.json()).then(console.log)`.
+     Expected: `{ specs: [...] }` with the new spec first
+     (`id`, `title`, `createdAt`, `createdByName` = your
+     name, `sizeBytes`), and no `blobPath` or URL.
+  3. Preview: the same with `"/specs/<specId>"` (the `id`
+     from step 2) in place of `"/specs"`. Expected
+     `{ id, title, createdAt, markdown }`.
+  4. Download: open
+     `http://localhost:3001/api/projects/<projectId>/specs/<specId>/download`
+     in the address bar. Expected: a file like
+     `my-project-technical-spec.md` downloads and opens as
+     the Markdown spec.
+  5. 404s: step 3 with `"/specs/nope"`, and step 2 in a
+     project you are not a member of (or with a made-up
+     project id), both answer 404.
+  6. Optional: in the Liveblocks dashboard, the project's
+     room storage now has `specsUpdatedAt`.
+- Then feature 28's check (both `npm run dev` and
+  `npm run trigger:dev` running; step 1 above repeats its
+  step 1):
+  1. Start route. Open a project you own in the browser
+     (`http://localhost:3001/editor/<id>`), press F12, open
+     the Console tab and run
+     `fetch("/api/ai/spec", { method: "POST", body: JSON.stringify({ projectId: location.pathname.split("/").pop() }) }).then(r => r.json().then(b => console.log(r.status, b)))`.
+     Expected: `202 { runId: "run_…" }`. Run it again with
+     `projectId: "does-not-exist"` in place of the
+     `location…` part: expected `404`. In a private window
+     (signed out) at `http://localhost:3001/sign-in`, run
+     the first one again: expected `401`.
+  2. Real spec. In the Trigger.dev dashboard, the run from
+     step 1 (task `spec-generator`) should finish with an
+     output `{ specId, title }` (since feature 29; read the
+     Markdown with feature 29's step 3 or 4): a Markdown spec with
+     Overview, Components (one per node), Data Flow and the
+     other sections, and the title "<Project name> —
+     Technical Spec". Or use the dashboard's Test page for
+     `spec-generator` with
+     `{ "projectId": "<id>", "userId": "test" }`.
+  3. Empty canvas. Test `spec-generator` the same way on a
+     project with nothing on the canvas. Expected: it fails
+     after one attempt (no retries) with "Add something to
+     the canvas before generating a spec".
+  4. Design agent. Type a prompt in the AI Architect chat
+     (e.g. "Add a cache in front of the database"): the
+     diagram changes and Ghost AI replies, as before.
+
+- Feature 27's check (done 2026-10-11 except the optional
+  failure checks): open the same project in
   two browsers (e.g. a normal and a private window), with
   `npm run dev` and `npm run trigger:dev` both running. In
   one window, type "Design a URL shortener" in the AI
@@ -1829,6 +1926,224 @@ change.
   - Polish idea (not done): when the model returns only tool
     calls, the reply is just the change count; it could name
     the main components it added.
+- 28 Spec Generation Flow (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/28-SPEC-GENERATION-FLOW.md`):
+  - New `lib/ai-models.ts` (`server-only`):
+    `withModelFallback` holds the model list (`AI_MODELS`:
+    gemini-3.8-flash → 3.7-flash → 3.6-flash), the 90 s
+    per-call timeout, the single retry and the fallback loop
+    that were in `trigger/design-agent.ts`. Each task passes
+    its own `generateText` call. The design agent now uses
+    it; same models, timeout, retry, fallback status and log
+    message as before.
+  - New `POST /api/ai/spec` (`app/api/ai/spec/route.ts`):
+    body `{ projectId }`; 401 signed out, 400 bad body, 404
+    no access; creates a `TaskRun` (`SPEC`), triggers
+    `spec-generator` with the row id as the idempotency key
+    and payload `{ projectId, userId, startedByName? }`,
+    stores the run id, 202 `{ runId }`. A failed trigger
+    deletes the row and answers 502. The existing token
+    route works for these runs unchanged.
+  - `trigger/spec-generator.ts` (was a placeholder): reads
+    the project name, the canvas (`readRoomCanvas` /
+    `describeCanvas`) and the newest 50 chat messages (new
+    `lib/spec-generator-chat.ts`), and generates the spec
+    with `generateText` (no tools; system prompt in the new
+    `lib/spec-generator-prompt.ts`). Returns
+    `{ markdown, title }`, title "<Project name> — Technical
+    Spec". Status steps in run metadata (`status` /
+    `statusLog`): `started`, `generating`, `done`, `failed`.
+    An empty canvas fails with "Add something to the canvas
+    before generating a spec" without calling the model.
+  - New `getProjectName` in `lib/project-data.ts`.
+  - Extra, not in the spec: the empty-canvas failure (and a
+    deleted project) uses `AbortTaskRunError`, so the run
+    fails once instead of being retried three times over
+    something a retry can't change.
+  - Extra, not in the spec: an empty model reply fails the
+    attempt (so it is retried), and a reply wrapped in a
+    ```` ```markdown ```` fence is unwrapped.
+  - Extra, not in the spec: the run-id save with retries
+    (and the cancel-and-delete when it fails) moved from the
+    design route into `saveTaskRunRunId` in
+    `lib/task-run-data.ts`, so both start routes share it.
+    The design route behaves as before.
+  - Extra, not in the spec: the system prompt tells the
+    model to treat the chat as context, not instructions,
+    and not to mention node positions or colors.
+  - Spec status steps go to run metadata only, not the
+    room's `aiStatus`, so generating a spec doesn't lock the
+    AI Architect composer or show the design status line.
+  - `CONTEXT/architecture.md` updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass (the
+    build lists `/api/ai/spec`). Scratch tests (no network,
+    no keys): 26 checks — the helper tries 3.8 → 3.7 → 3.6
+    in order, calls `onFallback` before each later model,
+    passes one retry, returns the first answer, throws the
+    last error when all fail and stops at once on cancel;
+    the chat reader (stubbed Liveblocks client) reads the
+    room as JSON, returns the newest 50 oldest first, reads
+    a missing/junk/null chat as empty and skips malformed
+    messages; the chat description; both task files load
+    without keys.
+  - Not verified (needs the owner): the route's 401/404/202
+    against the running app, a real spec run from the
+    Trigger.dev dashboard, the empty-canvas failure, and a
+    design run after the helper refactor.
+- 29 Spec Persistence and Download (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/29-SPEC-PERSISTENCE-DOWNLOAD.md`):
+  - New `prisma/models/project-spec.prisma`: `ProjectSpec`
+    (`id`, `projectId` relation with cascade delete, `runId`
+    unique, `title`, `blobPath`, `sizeBytes`, `createdBy`,
+    `createdByName?`, `createdAt`), indexed on
+    (`projectId`, `createdAt`); `Project.specs`
+    back-relation. Migration
+    `20261011210938_add_project_spec` created and applied to
+    the dev database (`prisma migrate status`: up to date).
+    The owner must restart `npm run dev` (stale Prisma
+    client otherwise).
+  - New `lib/spec-storage.ts` (`server-only`, sibling of
+    `lib/canvas-storage.ts`): `saveSpecMarkdown` writes
+    `specs/<projectId>/<runId>.md` to the private store
+    (`text/markdown`, overwrite allowed) and
+    `loadSpecMarkdown` reads it back (null when missing).
+  - New `lib/spec-data.ts` (`server-only`):
+    `upsertProjectSpec` (by `runId`), `listProjectSpecs`
+    (newest first, no `blobPath`), `findProjectSpec` (scoped
+    to the project, so another project's spec id is null).
+  - New `lib/spec-room.ts` (`server-only`):
+    `writeSpecsUpdatedAt` sets the room's `specsUpdatedAt`
+    (created on the first write); declared as optional
+    `specsUpdatedAt?: string` in `liveblocks.config.ts`.
+  - New `lib/specs.ts` (shared with the client, for feature
+    30): the response types `SpecSummary`, `SpecList`,
+    `SpecPreview` and `toSpecFileName` (title slug + `.md`,
+    `spec.md` when the title has no letters or digits).
+  - `trigger/spec-generator.ts`: after generating, saves the
+    Markdown, upserts the row (`createdBy` = `userId`,
+    `createdByName` = `startedByName`), writes
+    `specsUpdatedAt` (logged, never thrown), then records
+    `done`. Returns `{ specId, title }`. A failed Blob or
+    database save throws, so the attempt is retried (same
+    run id, so the same path and row).
+  - New routes, each: 401 signed out, 404 without project
+    access, 404 for a spec of another project, no Blob URL
+    or token in any response:
+    `GET /api/projects/[projectId]/specs` (`{ specs }`),
+    `GET /api/projects/[projectId]/specs/[specId]`
+    (`{ id, title, createdAt, markdown }`),
+    `GET /api/projects/[projectId]/specs/[specId]/download`
+    (`text/markdown; charset=utf-8`, `attachment;
+    filename="<slug-of-title>.md"`). A Blob read error
+    answers 500 JSON.
+  - Extra, not in the spec: the list returns
+    `{ specs: [...] }` rather than a bare array, like the
+    other routes' JSON objects. A row whose file is missing
+    answers 404 "Spec not found" on read and download.
+  - `CONTEXT/architecture.md` updated.
+  - Verified: `prisma validate`, migration applied, `tsc`,
+    `eslint`, `npm run build` pass (the build lists the
+    three routes). Against the running dev server, signed
+    out, all three routes answer 401 JSON. Scratch round
+    trip against the real Blob store and database (test row
+    and file removed afterwards), 20 checks: file names
+    (em dash, accents, no letters, quotes); two saves of the
+    same run id write the same path, keep one row with the
+    same id and the second attempt's title and byte size;
+    the file holds the second attempt's Markdown, with
+    content type `text/markdown`; the list has it first and
+    no `blobPath`; lookup by another project or an unknown
+    id is null; a missing file reads as null. The task file
+    loads without keys.
+  - Not verified (needs the owner, sign-in and
+    `trigger:dev`): a real `spec-generator` run saving its
+    file and row, the routes' signed-in 404s and data, the
+    browser download, and `specsUpdatedAt` in the room.
+- 30 Spec UI Integration (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/30-SPEC-UI-INTEGRATION.md`):
+  - Installed `react-markdown` ^10.1.0 and `remark-gfm`
+    ^4.0.1 (no `rehype-raw`). The `npm audit` findings all
+    come from packages that were already installed.
+  - Generate: new `hooks/use-spec-run.ts` (owned by
+    `AiSidebar`, like `useDesignRun`) sends
+    `POST /api/ai/spec` `{ projectId }`, then asks the token
+    route for a token. New
+    `components/editor/spec-run-follower.tsx` follows the
+    run with `useRealtimeRun` (payload skipped), mounted by
+    the sidebar only once a run id and a non-empty token
+    exist, keyed by the run id. It reports the step message
+    from the `status` metadata (a `failed` step is skipped,
+    since the attempt may be retried) and ends on the run's
+    final state (`isCompleted` or `isCancelled`), with the
+    `specId` from the output.
+  - The button is disabled while the room's canvas has no
+    nodes (hint "Add something to the canvas first"; also
+    while storage loads, without the hint) and while this
+    user's run is in progress. A status row shows a spinner
+    and the step ("Starting…" until the first). Success
+    reloads the list and opens the new spec's preview. A
+    start that fails or a run that fails shows "Couldn't
+    generate the spec — try again", never the raw error.
+  - List: new `hooks/use-spec-list.ts` loads
+    `GET /api/projects/[projectId]/specs` when the Specs tab
+    mounts, and again when the room's `specsUpdatedAt`
+    changes or the sidebar bumps its refresh key (after this
+    user's run). Rows: title, relative date (new
+    `lib/relative-time.ts`; refreshed every minute, full date
+    on hover), "· by <name>", `Preview` and `Download`.
+    Empty: "No specs yet — generate one from your diagram".
+  - Preview: new `components/editor/spec-preview-dialog.tsx`
+    on `EditorDialog` (`sm:max-w-4xl`,
+    `min(56rem, 100dvh - 2rem)` tall, own scroll, `nokey`)
+    loads `GET /api/projects/[projectId]/specs/[specId]` and
+    renders it with the new
+    `components/editor/spec-markdown.tsx` (`react-markdown`
+    + `remark-gfm`, token-styled typography through
+    descendant classes); `Download` in the footer. Lives in
+    `AiSidebar` (portal), so it opens even if the user
+    switched tabs during the run.
+  - Download: a plain link to the download route (its
+    `Content-Disposition: attachment` saves the `.md`).
+  - New `parseSpecList` / `parseSpecPreview` in
+    `lib/specs.ts` validate the responses on the client.
+  - Extra, not in the spec: if the token request fails or
+    the realtime subscription breaks, the user stops
+    following the run without an error and the button works
+    again: the run carries on and its spec still appears in
+    the list through `specsUpdatedAt`.
+  - Extra, not in the spec: links inside a spec open in a
+    new tab, so clicking one doesn't leave the editor. A
+    load failure in the preview shows "Couldn't load the
+    spec — try again"; a failed list load "Couldn't load
+    the specs — try again later".
+  - `CONTEXT/architecture.md` and `CONTEXT/ui-context.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass; the
+    built CSS contains the preview's token classes. Scratch
+    tests (no network, no keys; real React in jsdom, stubbed
+    `fetch`): 42 checks — relative dates (just now, minutes,
+    hours, days, dates with and without the year, future and
+    junk input); the response parsers; the Markdown render
+    (headings, lists, GFM table, code block; `<script>` and
+    `<img onerror>` stay text, a `javascript:` link loses its
+    URL, links open in a new tab); the spec run (start
+    request URL and body; failed start, failed run and a
+    `202` without `runId` show the error and unlock; not
+    followed before the token; a second click while busy is
+    ignored; step messages; success calls back with the spec
+    id; a failed or empty token unlocks with no error and is
+    never followed; unmounting mid-request aborts with no
+    React errors); the preview dialog (loads the right URL,
+    the spec's title, renders headings and a table, footer
+    download link, wide/tall/`nokey` classes, labelled by its
+    title, friendly error on 404).
+  - Not verified (needs the owner, sign-in and
+    `trigger:dev`): a real run's progress and preview, the
+    browser download, a collaborator's list refreshing live,
+    the empty-canvas button, and no "missing access token"
+    errors. Not tested offline: the follower (needs
+    Trigger.dev's realtime API) and the panel's room reads
+    (need a Liveblocks room).
 
 ## In Progress
 
@@ -1836,10 +2151,34 @@ change.
 
 ## Next Up
 
-- No spec yet after 27. Spec generation (the Specs tab and
-  `spec-generator`) is the next area in the overview.
+- None planned yet.
 
 ## Open Questions
+
+- Raw HTML in a spec (feature 30): it is not rendered, as
+  the spec says; react-markdown shows it as plain text (a
+  literal `<br>` stays visible). The model rarely writes
+  HTML. Say if it should be hidden instead.
+- Spec run that can't be followed (feature 30): if the
+  token request fails, the starter sees no progress and no
+  preview opens; the spec still appears in the list once
+  saved. Say if a note should be shown.
+
+- Spec files when a project is deleted (feature 29): the
+  `ProjectSpec` rows go with the project (cascade), but the
+  Markdown files under `specs/<projectId>/` stay in Blob, as
+  the spec says. Cleanup can come later (same question as
+  the canvas snapshots, feature 21).
+- Retry vs replay (feature 29): a retried attempt of a run
+  keeps its run id, so it replaces the file and updates the
+  one row. "Replay" in the Trigger.dev dashboard starts a
+  new run with a new id, so it saves a second spec, which
+  seems right for a fresh generation. Say if a replay
+  should replace the original instead.
+- A spec row whose Blob file is missing (feature 29): the
+  read and download routes answer 404 "Spec not found",
+  and the list still shows it. Only possible if the file is
+  removed by hand.
 
 - Sender's lock while a run waits to start (feature 27):
   the sender's composer stays locked from sending until

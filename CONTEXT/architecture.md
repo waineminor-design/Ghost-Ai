@@ -32,26 +32,32 @@ paths below are relative to it.
   run id; passes the signed-in user's name as
   `startedByName`; prompts are 1 to 2,000 characters after
   trimming, `DESIGN_PROMPT_MAX_LENGTH` in
-  `lib/design-prompt.ts`); `POST /api/ai/runs/[runId]/token`
-  returns a Trigger.dev public token that can read only that
-  run.
+  `lib/design-prompt.ts`); `POST /api/ai/spec`
+  (`{ projectId }`) starts a `spec-generator` run the same
+  way (`TaskRun` kind `SPEC`, row id as the idempotency key,
+  202 `{ runId }`; no one-run-at-a-time check);
+  `POST /api/ai/runs/[runId]/token` returns a Trigger.dev
+  public token that can read only that run (design or spec).
+  Both start routes save the run id with
+  `saveTaskRunRunId` (`lib/task-run-data.ts`, 3 attempts);
+  if it can't be saved the run is cancelled, the row deleted
+  and the route answers 502.
 - `trigger/` — Trigger.dev task definitions (AI design
   generation, spec generation). The only place long-running
   AI work runs. One task per file, each a named export with
   a typed payload: `design-agent` (`trigger/design-agent.ts`,
   `{ projectId, prompt, userId, startedByName? }`) and `spec-generator`
-  (`trigger/spec-generator.ts`, `{ projectId, userId }`).
-  `spec-generator` is still a placeholder that logs and
-  returns its input. App code triggers them by id with a
+  (`trigger/spec-generator.ts`,
+  `{ projectId, userId, startedByName? }`). App code triggers them by id with a
   type-only import
   (`tasks.trigger<typeof designAgent>("design-agent", ...)`),
   never by importing the task itself.
 - The design agent (`design-agent`, feature 24) reads the
   room's nodes and edges with the Liveblocks Node client
   (`lib/design-agent-canvas.ts`), sends Gemini a compact
-  description of them plus the prompt (model id in the
-  `DESIGN_AGENT_MODEL` constant in the task file; key
-  `GOOGLE_GENERATIVE_AI_API_KEY`), and gets back tool calls,
+  description of them plus the prompt (models through the
+  shared helper below; key `GOOGLE_GENERATIVE_AI_API_KEY`),
+  and gets back tool calls,
   one per canvas action (`lib/design-agent-tools.ts`:
   `addNode`, `updateNode`, `moveNode`, `resizeNode`,
   `deleteNode`, `addEdge`, `updateEdge`, `deleteEdge`; the
@@ -117,6 +123,45 @@ paths below are relative to it.
     apply would retry the run and apply twice). Crashed,
     cancelled and timed-out runs get no failure reply
     (Trigger.dev skips `onFailure` for them).
+- Shared model helper (`lib/ai-models.ts`, feature 28):
+  `withModelFallback` is how both AI tasks call Gemini. It
+  tries `AI_MODELS` in order (gemini-3.8-flash, then
+  3.7-flash, then 3.6-flash), each with a 90 s timeout and
+  one AI SDK retry, calls `onFallback` before each later
+  model, stops at once when the run is cancelled, and
+  otherwise throws the last model's error. Each task passes
+  its own `generateText` call. Change the models there.
+- The spec generator (`spec-generator`, feature 28) reads
+  the project's name (Prisma), the room's canvas (the design
+  agent's `readRoomCanvas` / `describeCanvas`) and the newest
+  50 messages of the room's `aiChat`
+  (`lib/spec-generator-chat.ts`), and asks Gemini (no tools,
+  system prompt `lib/spec-generator-prompt.ts`) for a
+  Markdown technical spec: Overview, Components (one
+  subsection per node), Data Flow, Data Storage, APIs and
+  Integrations, Scaling and Reliability, Security, Open
+  Questions, with assumptions listed explicitly. A reply
+  wrapped in one code fence is unwrapped; an empty one fails
+  the attempt (retried). An empty canvas (or a deleted
+  project) fails at once with `AbortTaskRunError` (no
+  retries, no model call): "Add something to the canvas
+  before generating a spec". Title "<Project name> —
+  Technical Spec". Saving (feature 29): the Markdown goes to
+  the private Blob store at `specs/<projectId>/<runId>.md`
+  (`lib/spec-storage.ts`, overwritten by a retried attempt),
+  then the `ProjectSpec` row is upserted by `runId`
+  (`lib/spec-data.ts`), so a run has one file and one row
+  however many attempts it takes; then the room's
+  `specsUpdatedAt` is set (`lib/spec-room.ts`; a failed
+  write is logged, never thrown). A failed save throws, so
+  the attempt is retried. Returns `{ specId, title }`, not
+  the Markdown. Status steps in
+  run metadata only (not the room): `status` /
+  `statusLog` as `{ step, message, at }` (types
+  `SpecGeneratorStatus` / `SpecGeneratorStep` in the task
+  file), steps `started`, `generating` (again on a model
+  fallback), `done`, `failed` (message is the empty-canvas
+  text, or "The spec generator failed").
 - `trigger.config.ts` (repo root) — Trigger.dev config:
   project ref from `TRIGGER_PROJECT_REF`, Node runtime,
   tasks in `./trigger`, max duration 3600 s, retries on by
@@ -148,7 +193,23 @@ paths below are relative to it.
   skipped) and reports when it ends; the sidebar mounts it
   only once both a run id and a non-empty token exist (the
   hook throws "missing access token" during render
-  otherwise), keyed by the run id. `components/canvas/collaborator-cursors.tsx`
+  otherwise), keyed by the run id.
+  `components/editor/spec-run-follower.tsx` does the same
+  for the spec run this user started from the Specs tab
+  (`hooks/use-spec-run.ts`: `POST /api/ai/spec`, then the
+  token route), skipping only the payload: it reports the
+  step message from the run's `status` metadata (a
+  `failed` step is skipped, since the attempt may be
+  retried) and the saved `specId` from its output, which
+  opens the spec preview. The spec list
+  (`hooks/use-spec-list.ts`) loads when the Specs tab
+  mounts and again whenever the room's `specsUpdatedAt`
+  changes; the preview (`spec-preview-dialog.tsx`) renders
+  the Markdown with `react-markdown` + `remark-gfm` only,
+  never raw HTML (no `rehype-raw`). The spec run, the
+  follower and the preview dialog live in `AiSidebar`, so
+  switching tabs doesn't drop them.
+  `components/canvas/collaborator-cursors.tsx`
   draws other users' cursors (Liveblocks' React Flow
   `<Cursors>`, `cursor` presence in flow coordinates).
   The navbar is outside the room, so the avatar stack
@@ -224,7 +285,11 @@ paths below are relative to it.
   (`selected`, `dragging`, `measured`, `resizing`); shared by
   the canvas route and the client. `lib/canvas-storage.ts`
   (`server-only`) reads and writes snapshots in the private
-  Blob store. `lib/canvas-colors.ts` maps node color keys
+  Blob store; `lib/spec-storage.ts` (`server-only`) does the
+  same for generated specs, `lib/spec-data.ts`
+  (`server-only`) holds the `ProjectSpec` queries and
+  `lib/spec-room.ts` (`server-only`) writes the room's
+  `specsUpdatedAt`. `lib/canvas-colors.ts` maps node color keys
   (`data.color`) to design-token classes; nodes store only
   the key. `lib/canvas-templates.ts` is the starter template
   library (`CANVAS_TEMPLATES`: ordinary `CanvasNode` /
@@ -297,6 +362,12 @@ Hybrid storage. The database stays lean.
     Indexed on projectId. The row is created before the
     trigger and its id is the run's idempotency key, so no
     run exists without a row; a failed trigger deletes it.
+  - `ProjectSpec`: one generated spec — project relation
+    (cascade delete), Trigger.dev run id of the
+    `spec-generator` run (unique), title, Blob path, size in
+    bytes, Clerk id and optional name of who asked for it,
+    timestamp. Indexed on (projectId, createdAt). Deleting a
+    project removes its rows but not their Blob files.
 - **Vercel Blob**: large artifacts — canvas snapshots
   (JSON) and generated specifications (Markdown). The
   database stores only the reference/URL. The store is
@@ -314,6 +385,23 @@ Hybrid storage. The database stays lean.
     from it once on load. Liveblocks stays the live source
     of truth; the snapshot is the copy AI and spec
     generation read.
+  - Generated specs (feature 29): one Markdown file per
+    `spec-generator` run at `specs/<projectId>/<runId>.md`
+    (`text/markdown`); its path is in `ProjectSpec.blobPath`.
+    Read through three routes, for the owner and
+    collaborators (401 signed out; 404 without access or for
+    a spec of another project; never a Blob URL or the
+    token): `GET /api/projects/[projectId]/specs`
+    (`{ specs }`, newest first: `id`, `title`, `createdAt`,
+    `createdByName`, `sizeBytes`),
+    `GET /api/projects/[projectId]/specs/[specId]`
+    (`{ id, title, createdAt, markdown }`) and
+    `GET /api/projects/[projectId]/specs/[specId]/download`
+    (the raw Markdown as an attachment named
+    `<slug-of-title>.md`). The response types and the file
+    name helper are in `lib/specs.ts` (shared with the
+    client), with `parseSpecList` / `parseSpecPreview`,
+    which the client uses to validate the responses.
 - **Liveblocks room storage**: live canvas state (nodes,
   edges) and presence during a session. The room id stays
   aligned with the project id. Storage holds `flow`
@@ -342,6 +430,11 @@ Hybrid storage. The database stays lean.
   design agent appends through `lib/design-agent-chat.ts`.
   Readers parse it (`parseAiChatMessages`), skip malformed
   messages and show at most the newest 200.
+  The optional `specsUpdatedAt` (feature 29, ISO string) is
+  when the spec generator last saved a spec, so open
+  clients refresh their spec list (feature 30).
+  Rooms without a saved spec don't have it; the first save
+  creates it.
 
 ## Auth and Access Model
 

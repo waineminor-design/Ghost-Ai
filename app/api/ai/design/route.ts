@@ -8,28 +8,13 @@ import {
   countRecentTaskRuns,
   createTaskRun,
   deleteTaskRun,
-  setTaskRunRunId,
+  saveTaskRunRunId,
 } from "@/lib/task-run-data";
 import type { designAgent } from "@/trigger/design-agent";
 
 // A run started this recently may still be queued, before it writes its
 // room status, so it also blocks a new run.
 const RECENT_RUN_WINDOW_MS = 20_000;
-const SET_RUN_ID_ATTEMPTS = 3;
-
-// Stores the run id on its tracking row, retrying a couple of times; the
-// token route can only find the run through this row.
-async function saveRunId(taskRunId: string, runId: string): Promise<boolean> {
-  for (let attempt = 1; attempt <= SET_RUN_ID_ATTEMPTS; attempt++) {
-    try {
-      await setTaskRunRunId(taskRunId, runId);
-      return true;
-    } catch (error) {
-      console.error(`Saving run id ${runId} (attempt ${attempt}) failed`, error);
-    }
-  }
-  return false;
-}
 
 // POST /api/ai/design — body `{ projectId: string; prompt: string }`.
 // Starts a `design-agent` run for the project and returns 202 with
@@ -103,7 +88,7 @@ export async function POST(request: Request) {
     return jsonError("Could not start the design run", 502);
   }
 
-  if (!(await saveRunId(taskRun.id, runId))) {
+  if (!(await saveTaskRunRunId(taskRun.id, runId))) {
     // Without its row nobody could follow the run: stop it rather than let
     // it change the canvas untracked.
     try {

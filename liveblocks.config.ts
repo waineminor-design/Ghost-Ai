@@ -23,11 +23,14 @@ declare global {
     // chat. Rooms that never had a design run have no `aiStatus` (read as
     // idle); the design agent creates it on its first write. Rooms without
     // a chat message have no `aiChat` (read as empty); the first message
-    // creates it.
+    // creates it. `specsUpdatedAt` (ISO) is when the spec generator last
+    // saved a spec, so open clients know to refresh their spec list; rooms
+    // without a saved spec don't have it.
     Storage: {
       flow: LiveblocksFlow<CanvasNode, CanvasEdge>;
       aiStatus?: LiveObject<AiStatus>;
       aiChat?: LiveList<LiveObject<AiChatMessage>>;
+      specsUpdatedAt?: string;
     };
 
     // Set by POST /api/liveblocks-auth when the session is prepared.
