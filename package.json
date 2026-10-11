@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "trigger:dev": "trigger.dev dev",
+    "trigger:dev": "trigger dev",
     "postinstall": "prisma generate"
   },
   "dependencies": {

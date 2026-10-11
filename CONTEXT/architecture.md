@@ -140,7 +140,8 @@ Local development needs two terminals, both in `ghost-ai/`:
 
 1. `npm run dev` — the Next.js app.
 2. `npm run trigger:dev` — the Trigger.dev dev worker
-   (`trigger.dev dev`). It registers the tasks with the
+   (`trigger dev` — the CLI's command is `trigger`, not
+   `trigger.dev`). It registers the tasks with the
    Trigger.dev project and runs them on this machine. The
    first run asks the CLI to log in to Trigger.dev.
 

@@ -1406,7 +1406,9 @@ change.
     `trigger/spec-generator.ts` (`specGenerator`, id
     `spec-generator`, payload `SpecGeneratorPayload`): log
     the payload with `logger.log` and return it.
-  - `package.json`: `"trigger:dev": "trigger.dev dev"`. The
+  - `package.json`: `"trigger:dev": "trigger dev"` (fixed
+    2026-10-11: it first said `trigger.dev dev`, which fails on
+    Windows — the installed CLI binary is named `trigger`). The
     installed CLI loads `.env`, `.env.development`,
     `.env.local`, `.env.development.local` from the project
     folder by default (checked in its source,
