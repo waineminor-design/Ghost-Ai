@@ -19,8 +19,49 @@ import { DESIGN_AGENT_SYSTEM_PROMPT } from "@/lib/design-agent-prompt";
 import { designAgentTools } from "@/lib/design-agent-tools";
 import { getLiveblocks } from "@/lib/liveblocks";
 
-// The Gemini model the agent uses. Change it here.
-const DESIGN_AGENT_MODEL = "gemini-3.8-flash";
+// The Gemini models the agent uses, in order: if one is overloaded, errors
+// or doesn't answer within the timeout, the next is tried. Change them here.
+const DESIGN_AGENT_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+] as const;
+
+// Longest a single model call may take before moving to the next model, so
+// a stalled request can't hold the run (and the AI presence) for an hour.
+const MODEL_TIMEOUT_MS = 90_000;
+
+type DesignGenerationInput = {
+  prompt: string;
+  // The run's abort signal (run cancelled or max duration reached).
+  signal: AbortSignal;
+};
+
+// Asks each model in turn until one answers. Cancelling the run stops
+// immediately; otherwise the last model's error is thrown.
+async function generateDesign({ prompt, signal }: DesignGenerationInput) {
+  let lastError: unknown;
+  for (const model of DESIGN_AGENT_MODELS) {
+    try {
+      return await generateText({
+        model: google(model),
+        system: DESIGN_AGENT_SYSTEM_PROMPT,
+        tools: designAgentTools,
+        prompt,
+        abortSignal: AbortSignal.any([signal, AbortSignal.timeout(MODEL_TIMEOUT_MS)]),
+        maxRetries: 1,
+      });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      lastError = error;
+      logger.warn("design-agent model call failed; trying the next model", {
+        model,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  throw lastError;
+}
 
 export interface DesignAgentPayload {
   projectId: string;
@@ -68,12 +109,9 @@ export const designAgent = task({
       await presence.show(getCanvasCenter(canvas.nodes));
 
       recordStatus("thinking", "Designing the changes");
-      const result = await generateText({
-        model: google(DESIGN_AGENT_MODEL),
-        system: DESIGN_AGENT_SYSTEM_PROMPT,
-        tools: designAgentTools,
+      const result = await generateDesign({
         prompt: `Current canvas:\n${describeCanvas(canvas)}\n\nRequest:\n${payload.prompt}`,
-        abortSignal: signal,
+        signal,
       });
 
       // Calls that don't match a tool's schema come back as dynamic,
