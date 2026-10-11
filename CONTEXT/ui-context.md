@@ -42,6 +42,33 @@ Current values are shadcn's neutral dark palette (see
 (e.g. a fainter text tone, success state, node colors) are
 added to `globals.css` first, then listed here.
 
+### Node colors
+
+Eight colors a canvas node can take, picked from the node
+color toolbar. Each has a dark fill, a brighter outline and
+light text, so labels stay readable on the dark canvas
+(text on fill is above 10:1, outline on the canvas above
+6:1). Tokens are in `:root` in `app/globals.css` and exposed
+to Tailwind as `--color-node-*`. Nodes store only the key
+(`data.color`); `NODE_COLORS` in `lib/canvas-colors.ts` is
+the one place a key becomes classes.
+
+| Key       | Fill               | Outline                    | Text                          |
+| --------- | ------------------ | -------------------------- | ----------------------------- |
+| `default` | `--card`           | `--input`                  | `--card-foreground`           |
+| `blue`    | `--node-blue`      | `--node-blue-border`       | `--node-blue-foreground`      |
+| `green`   | `--node-green`     | `--node-green-border`      | `--node-green-foreground`     |
+| `purple`  | `--node-purple`    | `--node-purple-border`     | `--node-purple-foreground`    |
+| `orange`  | `--node-orange`    | `--node-orange-border`     | `--node-orange-foreground`    |
+| `red`     | `--node-red`       | `--node-red-border` (= `--destructive`) | `--node-red-foreground` |
+| `yellow`  | `--node-yellow`    | `--node-yellow-border`     | `--node-yellow-foreground`    |
+| `teal`    | `--node-teal`      | `--node-teal-border`       | `--node-teal-foreground`      |
+
+Utilities: `fill-node-<key>`, `stroke-node-<key>-border`,
+`text-node-<key>-foreground` (and `bg-` / `border-` for the
+toolbar swatches). A new node color needs its three tokens
+in `globals.css`, a row here and an entry in `NODE_COLORS`.
+
 Exception: collaborator cursor colors are hex values in
 `USER_COLORS` in `lib/liveblocks.ts`. They are sent to
 other clients as Liveblocks user info, so they must be
@@ -115,18 +142,26 @@ app-specific wrappers in feature folders instead (e.g.
   size (node fill, `stroke-primary`), drawn by the same
   `ShapeOutline` as the nodes.
 - Shape nodes: SVG outline in the node's shape, filled and
-  stroked from the node's color key (`lib/canvas-colors.ts`;
-  `default` = `fill-card`, `stroke-input`,
-  `text-card-foreground`); selected nodes get a thicker
-  `stroke-primary` outline. Label centered. Connection
+  stroked from the node's color key (see Node colors above);
+  selected nodes keep their color's outline at a thicker
+  width (the resize frame marks the selection), so a newly
+  picked color shows at once. Label centered. Connection
   handles on all four sides (`--xy-handle-background-color`
   = `--muted-foreground`), shown on hover or when selected.
-  New node colors are added to `NODE_COLORS` only.
   Selected nodes show React Flow's resizer (side lines and
   corner handles, `--xy-resize-background-color` =
   `--primary`), minimum 60×40. Double-click edits the label
   in place: the editor uses the label's own centered,
   wrapping layout, so the text does not move while typing.
+- Node color toolbar: React Flow `NodeToolbar` above the
+  node, shown only while it is the single selected node and
+  hidden while its label is edited. Same pill as the shape
+  panel (`rounded-full`, `bg-card`, `border-border`,
+  `shadow-lg`), one round swatch per node color (fill with
+  its outline as the border, `bg-accent` behind it on
+  hover); the current color shows a `Check` in its text
+  color and has `aria-pressed`. Each swatch's `aria-label`
+  is the color name.
 - Access denied: centered `Lock` icon, short message and a
   link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center

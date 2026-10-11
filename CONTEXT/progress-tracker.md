@@ -5,12 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 14 (Node Editing) complete; awaiting the owner's
-  browser check
+- Feature 15 (Node Color Toolbar) complete; awaiting the
+  owner's browser check
 
 ## Current Goal
 
-- Feature 15 (Node Color Toolbar)
+- Feature 16 (Edge Behavior)
 
 ## Completed
 
@@ -839,13 +839,72 @@ change.
     the browser's spell-check underlines words (red
     squiggles); the spec doesn't cover it.
 
+- 15 Node Color Toolbar (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/15-NODE-COLOR-TOOLBAR.md`):
+  - `app/globals.css` — 21 node color tokens in `:root`
+    (`--node-<color>`, `--node-<color>-border`,
+    `--node-<color>-foreground` for blue, green, purple,
+    orange, red, yellow, teal), exposed in `@theme inline`
+    as `--color-node-*`. `default` reuses `--card` /
+    `--input` / `--card-foreground`; red's outline reuses
+    `--destructive`. Contrast checked with a script (WCAG,
+    oklch → sRGB): text on fill 10.1–10.6:1, outline on the
+    canvas 6.5–11.4:1, all values inside sRGB except the
+    reused `--destructive`.
+  - `lib/canvas-colors.ts` — `NODE_COLORS` now has all 8
+    colors in toolbar order, each with `label`, `fill`,
+    `stroke`, `text` and `swatch` classes written out in
+    full (Tailwind scans the file). New `isNodeColor()`;
+    `getNodeColorClasses()` uses it (unknown keys still
+    fall back to `default`).
+  - `components/canvas/node-color-toolbar.tsx` —
+    `NodeColorToolbar` (`currentColor`, `onSelectColor`):
+    React Flow `NodeToolbar` at `Position.Top`, left to its
+    default visibility (only while its node is the one
+    selected node). Pill styled like the shape panel,
+    `role="group"` `aria-label` "Node color". One `<button>`
+    per color: `aria-label` and `title` = color name,
+    `aria-pressed` on the current one, which also shows a
+    `Check` in the color's text color; Tab / Enter / Space
+    work as normal buttons. `nopan` keeps a press on a
+    swatch from panning the canvas; `nokey` keeps Space,
+    arrows and Backspace pressed on a swatch from reaching
+    React Flow (pan, move node, delete node).
+  - `components/canvas/shape-node.tsx` — renders the
+    toolbar (not while `isEditing`) as a sibling of the node
+    body, not inside it: the toolbar is portaled, but React
+    events still bubble through the React tree, so inside
+    the body a double-click on two swatches would start a
+    label edit. Picking a color calls
+    `updateNodeData(id, { color })` with the key only (no
+    write when unchanged), the same synced path as labels.
+    Selected nodes now keep their color's outline (2px
+    instead of 1.5px) instead of switching to
+    `stroke-primary`, so the outline change shows at once
+    for the person picking; the resize frame (`--primary`)
+    still marks the selection.
+  - `CONTEXT/ui-context.md` — node color palette table,
+    toolbar description, updated selected-outline rule.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains every `fill-/stroke-/text-/bg-/border-node-*`
+    class and all 21 tokens. Checked in the React Flow
+    source: clicks on the toolbar don't reach the pane's
+    deselect handler (it only acts when the pane itself is
+    the target) and a click on a swatch is a no-op for the
+    node's own select handler (already selected).
+  - Not verified (needs a browser signed in with Clerk): the
+    toolbar appearing above a selected node and hiding on
+    deselect, multi-select and while editing; colors
+    changing on click; the change reaching a collaborator;
+    keyboard use of the swatches.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 15 (Node Color Toolbar)
+- Feature 16 (Edge Behavior)
 
 ## Open Questions
 
@@ -895,6 +954,18 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Selected nodes are marked by the resize frame, not by a
+  `stroke-primary` outline: the node keeps its color's
+  outline (thicker) while selected. Why: the color toolbar
+  only shows on a selected node, so with a primary outline
+  a picked outline color would only appear after
+  deselecting, and spec 15 requires fill, outline and text
+  to change immediately.
+- Node colors are design tokens (`--node-*` in
+  `globals.css`), and node data stores only the key. Why:
+  colors stay themeable in one place, and stored canvases
+  (snapshots, templates, AI output) never carry hex values.
 
 - Node edits go through React Flow's own APIs, not direct
   Liveblocks mutations: `NodeResizer` emits node changes
