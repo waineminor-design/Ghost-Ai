@@ -121,12 +121,14 @@ app-specific wrappers in feature folders instead (e.g.
   `inert`. The AI sidebar starts open from `lg` up and
   closed below. In a project workspace the navbar left
   section holds `Templates` (`LayoutTemplate`, ghost, icon
-  only below `sm`) after the project sidebar toggle, the
+  only below `sm`) and the `Save` button after the project
+  sidebar toggle, the
   center shows the project name and the right section holds
   the presence avatar stack, the AI sidebar toggle
   (`PanelRightOpen` / `PanelRightClose`) and `Share` (icon
-  only below `sm`) before the `UserButton`. `Templates` sits on the left
-  because the right section is full on a 375 px phone.
+  only below `sm`) before the `UserButton`. `Templates` and
+  `Save` sit on the left because the right section is full
+  on a 375 px phone.
 - Canvas: React Flow (`colorMode="dark"`) fills the
   workspace, with a dot
   background and the canvas control bar (no minimap).
@@ -220,6 +222,15 @@ app-specific wrappers in feature folders instead (e.g.
   link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center
   and right sections and a subtle bottom border.
+- Save button: ghost, `sm`, icon only below `sm`; the label
+  and icon show the canvas autosave status: `Save` (`Save`
+  icon, idle / up to date), `Saving…` (spinning
+  `LoaderCircle`), `Saved` (`Check`, about 2 s, then back to
+  `Save`) and `Save failed` (`TriangleAlert`,
+  `text-destructive`; clicking retries). Disabled only while
+  a saved canvas is being restored into an empty room. Only
+  in a connected room; never on the editor home. A hidden
+  status region announces failures only.
 - Presence avatar stack: everyone in the room, you first,
   one avatar per user, as overlapping (`-ml-2`) `size-8`
   shadcn `Avatar`s — Clerk image, or initials on a circle

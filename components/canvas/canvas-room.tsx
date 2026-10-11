@@ -25,7 +25,7 @@ export function CanvasRoom({ projectId }: { projectId: string }) {
         initialPresence={{ cursor: null, isThinking: false }}
         initialStorage={createInitialStorage}
       >
-        <RoomContent />
+        <RoomContent projectId={projectId} />
       </RoomProvider>
     </LiveblocksProvider>
   );
@@ -44,7 +44,7 @@ function createInitialStorage(): Liveblocks["Storage"] {
 // A rejected token or a refused connection never loads storage, so the
 // error listener swaps the pending state for an error message. If the
 // room reconnects afterwards, the error is cleared and the canvas returns.
-function RoomContent() {
+function RoomContent({ projectId }: { projectId: string }) {
   const [connectionError, setConnectionError] = useState<number | null>(null);
   const status = useStatus();
 
@@ -69,7 +69,7 @@ function RoomContent() {
   return (
     <>
       <ClientSideSuspense fallback={<RoomConnecting />}>
-        <Canvas />
+        <Canvas projectId={projectId} />
       </ClientSideSuspense>
       <ClientSideSuspense fallback={null}>
         <PresenceAvatars />

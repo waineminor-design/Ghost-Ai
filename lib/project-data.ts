@@ -134,6 +134,35 @@ export async function getProjectOwnerId(
   return project?.ownerId ?? null;
 }
 
+// The canvas snapshot's Blob path (Project.canvasJsonPath); null when the
+// project has none or does not exist. Internal: never sent to clients.
+// Callers check project access first.
+export async function getCanvasJsonPath(
+  projectId: string,
+): Promise<string | null> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { canvasJsonPath: true },
+  });
+  return project?.canvasJsonPath ?? null;
+}
+
+// Points the project at its canvas snapshot. Writes only when the path
+// differs, so repeated saves to the same path don't touch the row.
+// Callers check project access first.
+export async function setCanvasJsonPath(
+  projectId: string,
+  path: string,
+): Promise<void> {
+  await prisma.project.updateMany({
+    where: {
+      id: projectId,
+      OR: [{ canvasJsonPath: null }, { canvasJsonPath: { not: path } }],
+    },
+    data: { canvasJsonPath: path },
+  });
+}
+
 // Ownership is part of the write filter, so these helpers never modify a
 // project the caller does not own. Routes still call getProjectOwnerId
 // first to tell 403 from 404.

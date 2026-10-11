@@ -5,16 +5,16 @@ change.
 
 ## Current Phase
 
-- Feature 20 (AI Sidebar Shell) built; `tsc`, `eslint`,
-  `npm run build` and a scripted DOM test pass. Not yet
-  checked in the browser.
+- Feature 21 (Canvas Autosave) built; `tsc`, `eslint`,
+  `npm run build`, signed-out API checks and scripted
+  hook/validation tests pass. Not yet checked in the
+  browser or against the real Blob store.
 
 ## Current Goal
 
-- Owner's browser check of feature 20, plus the feature 19
-  two-account check (cursors, avatar stack, leaving) and the
-  feature 18 replace confirmation and undo still pending,
-  then feature 21
+- Owner's browser check of feature 21 (signed in, with the
+  Blob token), plus the still-pending checks of features
+  18-20, then Trigger.dev setup
 
 ## Completed
 
@@ -1275,15 +1275,135 @@ change.
     smooth scrolling, and typing `-`, `+`, Backspace or
     Ctrl+Z in the composer with the canvas focused before.
 
+- 21 Canvas Autosave (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/21-CANVAS-AUTOSAVE.md`):
+  - `@vercel/blob` 2.8.1 installed. `lib/canvas-storage.ts`
+    (`server-only`): `saveCanvasSnapshot` writes
+    `canvas/<projectId>.json` with `access: "private"`,
+    `addRandomSuffix: false`, `allowOverwrite: true`;
+    `loadCanvasSnapshot` reads it with
+    `get(path, { access: "private", useCache: false })`
+    (origin read, so a fresh save is never answered from
+    cache) and validates it. The SDK takes
+    `BLOB_READ_WRITE_TOKEN` from the environment.
+  - `lib/canvas-snapshot.ts` (shared): the snapshot type
+    `{ version: 1, savedAt, nodes, edges }` built on the
+    canvas types, the 2 MB cap, structural validation of
+    nodes (id, numeric position, data object) and edges
+    (id, source, target, optional data object), and
+    `toCanvasContent`, which drops local-only React Flow
+    state (`selected`, `dragging`, `measured`, `resizing`)
+    so selecting alone never counts as a change. Data
+    fields are not checked one by one, so nodes saved
+    before a field existed still load.
+  - `lib/project-data.ts`: `getCanvasJsonPath` /
+    `setCanvasJsonPath` (writes only when the path differs).
+    `canvasJsonPath` stays out of every API response.
+  - `lib/api-response.ts`: `readJsonObject` takes
+    `maxBytes`; it rejects a too-large `Content-Length` and
+    also counts bytes while streaming, so a body without
+    (or with a wrong) length can't get past the cap.
+  - `app/api/projects/[projectId]/canvas/route.ts`: `GET`
+    returns the snapshot JSON (404 when none), `PUT`
+    validates `{ nodes, edges }` (400 when invalid or over
+    2 MB), writes the blob, stores the path and returns
+    `{ version, savedAt }`. Signed out -> 401; not owner or
+    collaborator, or unknown project -> 404; both roles may
+    read and save. Blob failures -> 500 JSON, logged. No
+    Blob URL is ever returned.
+  - `lib/api-client.ts`: `sendJsonRequest` accepts `PUT`
+    and `keepalive`, and throws `ApiRequestError` (with
+    `status`) for error responses, so restore can tell "no
+    snapshot" (404) from a failure.
+  - `hooks/use-canvas-autosave.ts`: the save logic is a
+    plain closure created once per mount (`useState`
+    initializer) and never torn down, so strict mode's extra
+    unmount/remount can't leave it dead; no `isMounted`
+    guard. Saves ~3 s after the last change, at once on
+    `Save`, and on `visibilitychange` (hidden), `pagehide`
+    and unmount (leaving the workspace) when something is
+    unsaved; those use `keepalive` when the body fits its
+    64 KiB limit. Automatic saves skip content equal to the
+    last successful save; the canvas counts as saved when
+    autosave is enabled. One request at a time: requests
+    during a save are merged into one follow-up save, and
+    the status stays `Saving…` until it ends. `Saved`
+    returns to `Save` after 2 s; `Save failed` stays until
+    the next attempt.
+  - `hooks/use-canvas-restore.ts`: if the room's flow is
+    empty on load, fetches the snapshot (aborted on
+    unmount, so strict mode's first request and stale
+    responses are never applied) and adds its nodes and
+    edges through the flow's `onNodesChange` /
+    `onEdgesChange` in one mutation that first re-checks
+    that storage is still empty, so a room that got content
+    meanwhile is never overwritten. After a real restore the
+    local undo history is cleared (undo must not empty the
+    room, which autosave would then save). Autosave is
+    enabled only after this check, so an empty room never
+    overwrites the snapshot it is about to load. Failed
+    lookups retry twice, 5 s apart, then autosave starts
+    anyway.
+  - `components/editor/save-button.tsx` +
+    `save-slot-context.ts`: the Save button with its status
+    (see `ui-context.md`), rendered by the canvas and
+    portaled into a navbar slot in the left section, like
+    the avatar stack. `Canvas` now takes `projectId`.
+  - `CONTEXT/architecture.md` and `CONTEXT/ui-context.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. On
+    `next start`, signed-out `GET` and `PUT` return 401
+    JSON. Scripted tests (jsdom in a scratch folder, not
+    added to the project): the real autosave hook in
+    `StrictMode` with a fake server passed 35 checks
+    (nothing sent while disabled or on enable; one PUT
+    ~3 s after the last change with local fields stripped;
+    selection alone sends nothing; three clicks in a row
+    each send a PUT and go `Saving…` -> `Saved`; `Saved` ->
+    `Save` after 2 s; failure -> `Save failed`, stays, click
+    retries; only one request in flight, clicks during it
+    become one follow-up; a change during a save saves again
+    after it; hidden/pagehide send a keepalive save only
+    when something is unsaved; unmount saves unsaved
+    changes; nothing after unmount). The real restore hook
+    against a fake room passed 15 checks (restores once
+    under strict mode and clears history; 404 leaves the
+    room empty; a non-empty room makes no request; content
+    added while loading is kept, the snapshot skipped and
+    the history left alone; unmount before the response
+    applies nothing; 500 retries twice then gives up).
+    Validation and the body cap passed 26 checks (exactly
+    2 MB accepted, over 2 MB rejected with and without
+    `Content-Length`, multibyte counted as bytes, bad
+    nodes/edges rejected, older nodes accepted).
+  - Not verified (needs a signed-in browser and the Blob
+    token, which agents don't read): a real save appearing
+    as `canvas/<projectId>.json` in the Blob store and being
+    overwritten, a non-member's 404, and restoring into an
+    empty room.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 21 (canvas autosave)
+- Trigger.dev setup, then AI design generation (22–26)
 
 ## Open Questions
+
+- Canvas snapshots when a project is deleted (feature 21):
+  deleting a project removes its row but not
+  `canvas/<projectId>.json` in Blob, so the blob is left
+  behind. The spec doesn't cover deletion; say if the
+  delete route should remove it too.
+- `Save` with nothing changed (feature 21): the spec's
+  "skip saving when nothing changed" is applied to the
+  automatic saves (debounce, page hide, leaving); a click
+  always saves, so `Save` visibly works every time and
+  also stores a room that existed before autosave and
+  hasn't been edited since. Say if a click should skip
+  unchanged content too.
 
 - Avatar stack on small screens (feature 19): the navbar's
   right section is already full on a 375 px phone, so the
@@ -1338,6 +1458,22 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Canvas snapshots are read and written only by the canvas
+  route on the server (private Blob, token server-side);
+  Liveblocks stays the live source of truth and the
+  snapshot is a copy. Why: the spec keeps Blob URLs and the
+  token out of the browser, and later AI/spec features read
+  the snapshot, not the room.
+- Autosave starts only after the restore check. Why: an
+  empty room that is about to be restored would otherwise
+  save the empty canvas over the snapshot.
+- The Save button is portaled into a navbar slot
+  (`SaveSlotContext`), like the avatar stack. Why: saving
+  needs the room's nodes and edges, which only exist inside
+  the canvas, while the navbar is in the shared editor
+  layout. It sits in the left section because the right one
+  is full on phones.
 
 - Template import is one Liveblocks mutation that clears
   `flow` and adds through `useLiveblocksFlow`'s handlers.

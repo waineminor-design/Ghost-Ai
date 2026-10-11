@@ -21,8 +21,10 @@ interface EditorNavbarProps {
   isAiSidebarOpen: boolean;
   onToggleAiSidebar: () => void;
   onOpenTemplates: () => void;
-  // Receives the element the canvas room portals the avatar stack into.
+  // Receive the elements the canvas room portals the avatar stack and the
+  // Save button into.
   presenceSlotRef: (element: HTMLElement | null) => void;
+  saveSlotRef: (element: HTMLElement | null) => void;
   projectsPromise: Promise<EditorProjects>;
 }
 
@@ -33,6 +35,7 @@ export function EditorNavbar({
   onToggleAiSidebar,
   onOpenTemplates,
   presenceSlotRef,
+  saveSlotRef,
   projectsPromise,
 }: EditorNavbarProps) {
   const ToggleIcon = isSidebarOpen ? PanelLeftClose : PanelLeftOpen;
@@ -55,6 +58,10 @@ export function EditorNavbar({
             onOpenTemplates={onOpenTemplates}
           />
         </Suspense>
+        {/* The canvas renders the Save button here, so it only shows in a
+            workspace. In the left section because the right one is full
+            on phones; `contents` leaves no gap while it is empty. */}
+        <div ref={saveSlotRef} className="contents" />
       </div>
       <div className="flex min-w-0 items-center justify-center">
         <Suspense>
