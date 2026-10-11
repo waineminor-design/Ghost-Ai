@@ -1,6 +1,7 @@
 import { useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+import { requestErrorMessage, sendJsonRequest } from "@/lib/api-client";
 import { toProjectSlug, type Project } from "@/lib/projects";
 
 export type ProjectDialogType = "create" | "rename" | "delete";
@@ -22,39 +23,6 @@ export interface ProjectDialogs {
   openDeleteDialog: (project: Project) => void;
   closeDialog: () => void;
   submit: () => Promise<void>;
-}
-
-const FALLBACK_ERROR = "Something went wrong. Please try again.";
-
-// Sends a project API request. Resolves with the parsed JSON body (null
-// for 204); throws an Error carrying the API's `error` message otherwise.
-async function sendProjectRequest(
-  url: string,
-  method: "POST" | "PATCH" | "DELETE",
-  body?: { name: string },
-): Promise<unknown> {
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new Error("Could not reach the server. Check your connection.");
-  }
-
-  const data: unknown =
-    response.status === 204 ? null : await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const message =
-      data && typeof data === "object" && "error" in data
-        ? String(data.error)
-        : FALLBACK_ERROR;
-    throw new Error(message);
-  }
-  return data;
 }
 
 // Owns dialog, form (name, slug), loading and error state for the
@@ -113,8 +81,9 @@ export function useProjectDialogs(): ProjectDialogs {
     setIsRequesting(true);
     try {
       if (activeDialog === "create") {
-        const project = (await sendProjectRequest("/api/projects", "POST", {
-          name,
+        const project = (await sendJsonRequest("/api/projects", {
+          method: "POST",
+          body: { name },
         })) as Project;
         startRefresh(() => {
           setActiveDialog(null);
@@ -132,9 +101,9 @@ export function useProjectDialogs(): ProjectDialogs {
       const projectUrl = `/api/projects/${encodeURIComponent(targetProject.id)}`;
 
       if (activeDialog === "rename") {
-        await sendProjectRequest(projectUrl, "PATCH", { name });
+        await sendJsonRequest(projectUrl, { method: "PATCH", body: { name } });
       } else {
-        await sendProjectRequest(projectUrl, "DELETE");
+        await sendJsonRequest(projectUrl, { method: "DELETE" });
       }
 
       startRefresh(() => {
@@ -146,7 +115,7 @@ export function useProjectDialogs(): ProjectDialogs {
         router.refresh();
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : FALLBACK_ERROR);
+      setError(requestErrorMessage(err));
     } finally {
       setIsRequesting(false);
     }

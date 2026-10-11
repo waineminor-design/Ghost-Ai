@@ -5,11 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 07 complete; Feature 08: TBD
+- Feature 09 (Share Dialog) complete; browser check with two
+  Clerk accounts pending
 
 ## Current Goal
 
-- Awaiting next feature spec
+- Owner browser-checks feature 09, then the next spec
 
 ## Completed
 
@@ -345,13 +346,161 @@ change.
     `sslmode=verify-full` in `DATABASE_URL` (same behavior
     today) to silence it.
 
+- 08 Editor Workspace Shell (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/08-EDITOR-WORKSPACE-SHELL.md`):
+  - `lib/project-access.ts` (`server-only`) —
+    `getCurrentIdentity()` (Clerk user id + primary email,
+    null when signed out; wrapped in React `cache()` so the
+    layout and page share one Clerk lookup per request) and
+    `getProjectAccess(projectId, identity)` →
+    `{ project, role: "owner" | "collaborator" }` or null.
+  - `lib/project-data.ts` — new `findAccessibleProject()`
+    (one query: id AND (owner OR collaborator email)). The
+    case-insensitive collaborator filter is now one helper,
+    `hasCollaboratorEmail()`, shared with
+    `listProjectsForUser()`.
+  - `app/editor/layout.tsx` — `loadEditorProjects()` now uses
+    `getCurrentIdentity()` instead of its own Clerk calls.
+  - `app/editor/[projectId]/page.tsx` — params, session and
+    access check run inside the page's own `<Suspense>`
+    (spinner fallback), so the editor chrome stays in the
+    static shell (`◐`). Signed out → `redirectToSignIn()`;
+    no access or unknown id → `AccessDenied` (same screen,
+    existence not revealed); otherwise `ProjectWorkspace`.
+  - `components/editor/access-denied.tsx` — centered `Lock`
+    icon, "You don't have access to this workspace", a short
+    hint, and an outline "Back to projects" link to `/editor`.
+    Tokens only, no card.
+  - `components/editor/project-workspace.tsx` — canvas
+    placeholder (`bg-background`, "Canvas coming soon")
+    filling the space, plus a `w-80` AI chat placeholder
+    (`bg-sidebar`, `border-l border-border`). The chat panel
+    is hidden below `md` so the canvas keeps its width on
+    phones (the spec didn't cover mobile).
+  - `hooks/use-current-project.ts` — `useCurrentProjectId()`
+    (the `projectId` route param, via `useParams`) and
+    `useCurrentProject(projectsPromise)` (finds it in the
+    layout's owned + shared lists).
+  - `components/editor/editor-navbar.tsx` — takes
+    `projectsPromise`; center shows the open project's name
+    (`h1`), right shows an outline `Share` button (no
+    behavior) before `UserButton`. Both render nothing
+    outside a workspace or on Access Denied.
+  - `components/editor/project-sidebar.tsx` — each project
+    name is a `Link` to `/editor/<id>` (rename/delete stay
+    sibling buttons); the current project gets
+    `bg-sidebar-accent` and `aria-current="page"`.
+  - `/editor` home unchanged.
+  - Verified: `tsc`, `eslint`, `npm run build` pass
+    (`/editor/[projectId]` is `◐`). A script ran
+    `getProjectAccess` against the database (10 checks, all
+    pass): owner → `owner` (with or without email);
+    collaborator → `collaborator` with a different-case
+    email; stranger (with or without email) → null; unknown
+    id → null; `canvasJsonPath` not returned; test rows
+    deleted. Against `next start`, signed-out
+    `/editor/<id>` 307s to `/sign-in?redirect_url=...`.
+  - Not verified (needs a browser signed in with Clerk): the
+    owner opening a workspace with the name in the navbar,
+    a second account seeing Access Denied, sidebar click
+    + highlight. No canvas, Liveblocks, chat or sharing
+    logic added.
+
+- 09 Share Dialog (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/09-SHARE-DIALOG.md`):
+  - `lib/collaborators.ts` (client-safe) — `normalizeEmail()`
+    (trim + lowercase), `isValidEmail()` (one `@`, no
+    whitespace, dot in the domain, max 254 chars) and the
+    response types `MemberProfile`, `CollaboratorProfile`,
+    `ProjectMembers`.
+  - `lib/user-profiles.ts` (`server-only`) — Clerk backend
+    lookups: `getProfilesByEmail()` (`users.getUserList` by
+    email, batched by 100, every address of a user mapped)
+    and `getProfileByUserId()` for the owner (`getUserList`
+    by id, so a deleted user yields nulls instead of a
+    throw). Name = `fullName ?? username`, avatar =
+    `imageUrl`. A Clerk API failure is logged and degrades
+    to emails only rather than failing the request.
+  - `lib/project-data.ts` — `listCollaborators()` (oldest
+    first), `addCollaborator()` (null on P2002 → 409) and
+    `removeCollaborator()` (owner id in the delete filter,
+    like `deleteProject`; false on P2025 → 404).
+  - Routes (all via `getCurrentIdentity` +
+    `getProjectAccess`; order 401 → body 400 → 404 → 403):
+    `GET /api/projects/[projectId]/collaborators` →
+    `{ owner, collaborators }`; `POST` (owner only)
+    `{ email }` → 400 invalid / own email, 409 duplicate,
+    201 enriched collaborator; `DELETE
+    /api/projects/[projectId]/collaborators/[collaboratorId]`
+    (owner only) → 204. No access or unknown project → 404,
+    collaborator invite/remove → 403.
+  - `lib/api-client.ts` — `sendJsonRequest()` (moved out of
+    `use-project-dialogs.ts`, now with an `AbortSignal`) and
+    `requestErrorMessage()`; the project dialogs hook uses it
+    unchanged in behavior.
+  - `hooks/use-project-share.ts` — `useProjectShare()` owns
+    open state, members, invite email + validity, inviting /
+    removing / loading state, the inline error and copy-link
+    status. The list loads when the dialog opens; requests
+    share one `AbortController` that is aborted on close and
+    unmount, so late responses never touch a closed dialog.
+    Copy link writes `<origin>/editor/<id>`; "Copied!" for
+    2 s (timer cleared on close/unmount); a failed or missing
+    `navigator.clipboard` shows an inline error instead.
+  - `components/editor/share-dialog.tsx` — on `EditorDialog`:
+    owner-only email + `Invite` (disabled while invalid or a
+    request is pending), "People with access" list (owner
+    first with an `Owner` badge, then collaborators; remove
+    buttons owner-only), `Copy link` in the footer.
+    `RequestError` is now exported from `project-dialogs.tsx`
+    and reused here.
+  - `components/editor/editor-navbar.tsx` — `Share` opens the
+    dialog. `ShareAction` is keyed by project id, so
+    switching workspaces resets share state. `isOwner` comes
+    from the layout's `currentUserId` (display only).
+  - Added shadcn `avatar` via the CLI
+    (`components/ui/avatar.tsx`; no new dependencies).
+  - Verified: `tsc`, `eslint`, `npm run build` pass (new
+    routes are `ƒ`). A script ran the real route handlers
+    against the database with Clerk's `auth()`,
+    `currentUser()` and `clerkClient()` stubbed (35 checks,
+    all pass): 401 signed out; 400 for invalid JSON, array
+    body, missing / non-string / malformed / too-long email
+    and the owner's own email in another case; 201 stores
+    `friend@example.com` from `"  Friend@EXAMPLE.com "` with
+    name + avatar; 409 for a case variant; unknown Clerk user
+    → email only; collaborator GET 200 but POST/DELETE 403
+    (row kept); stranger and unknown project → 404; a
+    collaborator id from another project → 404; Clerk outage
+    → 200 with emails only; owner DELETE 204, then the removed
+    user gets 404. Test rows deleted. Against `next start`,
+    signed-out GET/POST/DELETE return 401 JSON.
+  - Not verified (needs a browser and two Clerk accounts):
+    the dialog itself, the invited user seeing the project
+    under `Shared` and opening it, the collaborator view
+    without controls, Access Denied after removal, and the
+    clipboard paths.
+  - Browser-verified by the owner with two Clerk accounts
+    (2026-10-10): owner invited the second account's email;
+    the dialog listed the owner (Owner badge) and the
+    collaborator with their Clerk name; the collaborator saw
+    the project under `Shared`, opened the workspace, and got
+    the view-only share dialog (no invite box, no remove
+    buttons). Removal → Access Denied not yet re-checked in
+    the browser (covered by the API check above).
+  - Dev note: after features 08–09 the running `next dev`
+    served a stale `lib/project-data.ts` ("findAccessibleProject
+    is not a function") while `tsc` and `next build` passed.
+    Fix: stop the dev server, delete `.next/`, restart.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 08 (TBD)
+- Browser check of feature 09 (two Clerk accounts), then
+  feature 10 (no spec yet)
 
 ## Open Questions
 
@@ -413,6 +562,21 @@ change.
   sidebar, so `/editor` keeps a static shell. Mutations go
   through the route handlers, then `router.refresh()`
   re-runs the layout.
+
+- The workspace navbar (project name, `Share`) and the
+  sidebar highlight read the open project from the layout's
+  project lists, matched by the `projectId` route param.
+  Why: the navbar and sidebar live in the shared
+  `app/editor/layout.tsx`, which can't receive data from
+  the page, and those lists hold exactly the projects the
+  user may open (same owner-or-collaborator rule). The page
+  still does its own server-side access check; the navbar
+  only displays. Rename/delete `router.refresh()` updates
+  both.
+- Server-side access checks go through
+  `lib/project-access.ts`
+  (`getCurrentIdentity` + `getProjectAccess`); its queries
+  live in `lib/project-data.ts`.
 
 - Project dialog state lives in `EditorShell` (via
   `useProjectDialogs`), not in each page, so the sidebar and

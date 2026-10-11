@@ -219,7 +219,7 @@ function SlugPreview({
 }
 
 // Failed request message, shown inside the dialog that sent it.
-function RequestError({ message }: { message: string | null }) {
+export function RequestError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
     <p role="alert" className="text-sm text-destructive">

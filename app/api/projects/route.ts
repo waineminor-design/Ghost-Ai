@@ -1,19 +1,17 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 
 import { jsonError, readJsonObject } from "@/lib/api-response";
+import { getCurrentIdentity } from "@/lib/project-access";
 import { createProject, listProjectsForUser } from "@/lib/project-data";
 import { DEFAULT_PROJECT_NAME, PROJECT_NAME_MAX_LENGTH } from "@/lib/projects";
 
 // GET /api/projects — `{ owned, shared }` for the signed-in user.
+// Shared projects match collaborator rows by the verified primary email.
 export async function GET() {
-  const { userId } = await auth();
-  if (!userId) return jsonError("Unauthorized", 401);
+  const identity = await getCurrentIdentity();
+  if (!identity) return jsonError("Unauthorized", 401);
 
-  // Shared projects match collaborator rows by the primary email.
-  const user = await currentUser();
-  const email = user?.primaryEmailAddress?.emailAddress ?? null;
-
-  const projects = await listProjectsForUser(userId, email);
+  const projects = await listProjectsForUser(identity.userId, identity.email);
   return Response.json(projects);
 }
 
