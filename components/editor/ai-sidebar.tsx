@@ -5,19 +5,25 @@ import { FileText, Sparkles } from "lucide-react";
 import { AiChatPanel } from "@/components/editor/ai-chat-panel";
 import { useAiSidebarVisibility } from "@/components/editor/ai-sidebar-context";
 import { AiSpecsPanel } from "@/components/editor/ai-specs-panel";
+import { DesignRunFollower } from "@/components/editor/design-run-follower";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAiChat } from "@/hooks/use-ai-chat";
+import { useDesignRun } from "@/hooks/use-design-run";
 import { cn } from "@/lib/utils";
 
 // AI sidebar with the AI Architect chat and the Specs tab (UI only for
 // now). Floats over the right edge of the canvas, like the project sidebar
 // on the left, and slides off-screen when closed. Opened and closed from
-// the navbar. The parent container must be `relative`.
-export function AiSidebar() {
+// the navbar. The parent container must be `relative`. Must render inside
+// the project's RoomProvider and ReactFlowProvider.
+export function AiSidebar({ projectId }: { projectId: string }) {
   const { isOpen, followsScreenSize } = useAiSidebarVisibility();
   // Owned here, not in the tab panel: inactive panels unmount, and the
-  // chat must survive switching tabs.
+  // draft and the run this user started must survive switching tabs (the
+  // messages live in the room).
   const chat = useAiChat();
+  const designRun = useDesignRun(projectId);
+  const { followed } = designRun;
 
   return (
     <aside
@@ -36,6 +42,14 @@ export function AiSidebar() {
             : "translate-x-[calc(100%+0.5rem)]",
       )}
     >
+      {followed && (
+        <DesignRunFollower
+          key={followed.runId}
+          runId={followed.runId}
+          token={followed.token}
+          onEnd={designRun.end}
+        />
+      )}
       <Tabs defaultValue="architect" className="min-h-0 flex-1 gap-0">
         <div className="shrink-0 border-b border-sidebar-border p-3">
           <TabsList aria-label="AI sidebar sections" className="w-full">
@@ -55,7 +69,7 @@ export function AiSidebar() {
           value="architect"
           className="flex min-h-0 flex-col data-ending-style:hidden"
         >
-          <AiChatPanel chat={chat} />
+          <AiChatPanel chat={chat} designRun={designRun} />
         </TabsContent>
         <TabsContent
           value="specs"

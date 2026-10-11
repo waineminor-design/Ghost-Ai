@@ -9,6 +9,7 @@ import { ArrowUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { DESIGN_PROMPT_MAX_LENGTH } from "@/lib/design-prompt";
 
 export interface AiChatComposerHandle {
   focus: () => void;
@@ -20,18 +21,23 @@ interface AiChatComposerProps {
   onChange: (value: string) => void;
   canSend: boolean;
   onSend: () => void;
+  // True while Ghost AI is working: nothing can be typed or sent.
+  isLocked?: boolean;
 }
 
 // Message box at the bottom of the AI Architect tab. Grows with its text up
 // to six lines, then scrolls. Enter sends, Shift+Enter adds a line. Canvas
 // shortcuts ignore keys typed in a textarea, so typing here never zooms,
-// undoes or deletes on the canvas.
+// undoes or deletes on the canvas. Disabled while locked, keeping the
+// draft. Stops at the longest design prompt, so a message never fails to
+// start a design run (or gets cut) for being too long.
 export function AiChatComposer({
   ref,
   value,
   onChange,
   canSend,
   onSend,
+  isLocked = false,
 }: AiChatComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -71,11 +77,18 @@ export function AiChatComposer({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Describe a system…"
+        maxLength={DESIGN_PROMPT_MAX_LENGTH}
+        disabled={isLocked}
+        placeholder={isLocked ? "Ghost AI is working…" : "Describe a system…"}
         aria-label="Message AI Architect"
         className="field-sizing-fixed max-h-[calc(6lh+1rem+2px)] min-h-0 resize-none"
       />
-      <Button type="submit" size="icon-lg" disabled={!canSend} aria-label="Send message">
+      <Button
+        type="submit"
+        size="icon-lg"
+        disabled={!canSend || isLocked}
+        aria-label="Send message"
+      >
         <ArrowUp />
       </Button>
     </form>

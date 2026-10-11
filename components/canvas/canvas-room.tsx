@@ -9,6 +9,7 @@ import {
   useErrorListener,
   useStatus,
 } from "@liveblocks/react/suspense";
+import { ReactFlowProvider } from "@xyflow/react";
 import { LoaderCircle, TriangleAlert } from "lucide-react";
 
 import { Canvas } from "@/components/canvas/canvas";
@@ -16,8 +17,18 @@ import { PresenceAvatars } from "@/components/editor/presence-avatars";
 
 // Client entry point for a project's canvas. Joins the Liveblocks room
 // whose id is the project id; /api/liveblocks-auth only issues a token for
-// it to the owner and collaborators.
-export function CanvasRoom({ projectId }: { projectId: string }) {
+// it to the owner and collaborators. `children` is UI next to the canvas
+// that also reads the room (the AI sidebar); it renders while the room
+// connects and if the connection fails, so it must not suspend. The React
+// Flow provider wraps both, so the sidebar can move this user's view of
+// the canvas (fit it after a design run).
+export function CanvasRoom({
+  projectId,
+  children,
+}: {
+  projectId: string;
+  children?: ReactNode;
+}) {
   return (
     <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
       <RoomProvider
@@ -25,7 +36,12 @@ export function CanvasRoom({ projectId }: { projectId: string }) {
         initialPresence={{ cursor: null, isThinking: false }}
         initialStorage={createInitialStorage}
       >
-        <RoomContent projectId={projectId} />
+        <ReactFlowProvider>
+          <section aria-label="Canvas" className="size-full bg-background">
+            <RoomContent projectId={projectId} />
+          </section>
+          {children}
+        </ReactFlowProvider>
       </RoomProvider>
     </LiveblocksProvider>
   );
@@ -33,6 +49,8 @@ export function CanvasRoom({ projectId }: { projectId: string }) {
 
 // Storage for a room that has none yet: an empty canvas. Existing rooms
 // keep their storage; this only runs the first time a room is joined.
+// `aiStatus` and `aiChat` are left out: the design agent creates
+// `aiStatus` on its first run, and the first chat message creates `aiChat`.
 function createInitialStorage(): Liveblocks["Storage"] {
   return {
     flow: new LiveObject({ nodes: new LiveMap(), edges: new LiveMap() }),

@@ -1,5 +1,5 @@
 import { jsonError, readJsonObject } from "@/lib/api-response";
-import { getUserColor, liveblocks } from "@/lib/liveblocks";
+import { getLiveblocks, getUserColor } from "@/lib/liveblocks";
 import { getCurrentIdentity, getProjectAccess } from "@/lib/project-access";
 
 // Liveblocks limits room ids to 128 characters.
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const access = await getProjectAccess(room, identity);
   if (!access) return jsonError("Forbidden", 403);
 
-  const session = liveblocks.prepareSession(identity.userId, {
+  const session = getLiveblocks().prepareSession(identity.userId, {
     userInfo: {
       name: identity.name ?? "Anonymous",
       avatar: identity.imageUrl ?? undefined,

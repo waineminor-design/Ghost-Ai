@@ -141,18 +141,46 @@ app-specific wrappers in feature folders instead (e.g.
   `TriangleAlert` (`text-destructive`) and a short message.
 - AI sidebar: a header with shadcn `Tabs` (`AI Architect`
   with `Sparkles`, `Specs` with `FileText`, full-width list).
-  AI Architect: messages in a `ScrollArea` that fills the
+  AI Architect: at the top, a slim status line with the
+  room's AI status, the same for everyone in the project
+  (`role="status"`, `text-xs`, `border-b`; collapsed when
+  there is nothing to show): while a run works a spinning
+  `LoaderCircle`, the step's message and "· started by
+  <name>" (muted); after it ends the result with a `Check`
+  (done) or a `TriangleAlert` (`text-destructive`, failed)
+  for ~10 s; nothing when idle, missing, or an unfinished
+  status is over 3 minutes old. Below it, the project's
+  shared messages (the same for everyone, live) in a
+  `ScrollArea` that fills the
   space above the composer and scrolls to the newest; user
   bubbles right-aligned (`bg-primary`), assistant bubbles
   left-aligned (`bg-muted`) after a small round `Sparkles`
   icon (`bg-sidebar-accent`); bubbles `rounded-lg`, `text-sm`,
-  at most 85% wide. While empty: a centered `Sparkles`
+  at most 85% wide, each under a muted `text-xs` author
+  line: the sender's name, "You" for your own, "Ghost AI"
+  for assistant messages. While empty: a centered `Sparkles`
   circle, the intro "Describe a system and I'll design it on
-  the canvas" and outline starter-prompt buttons that fill
-  the composer. Composer pinned at the bottom
+  the canvas", a muted `text-xs` note that messages are
+  shared with the project, and outline starter-prompt
+  buttons that fill the composer. Sending a message starts
+  a design run; Ghost AI's reply (the summary, or "I
+  couldn't finish that design. Please try again.") arrives
+  as an assistant message for everyone. If the run can't
+  start, a `text-xs text-destructive` note "Couldn't start
+  the design — try again" (`role="alert"`) appears under
+  the message, only for its sender. Composer pinned at the bottom
   (`border-t`): a one-line `Textarea` that grows to six
-  lines and then scrolls, and an icon-only send button
-  (`ArrowUp`, disabled while the text is blank). Enter
+  lines and then scrolls (stops at 2,000 characters, the
+  longest design prompt), and
+  an icon-only send button (`ArrowUp`, disabled while the
+  text is blank or the room hasn't connected). While a
+  run is active (status line spinner showing) both are
+  disabled for everyone in the room, with the placeholder
+  "Ghost AI is working…"; a draft already typed stays. For
+  the person who sent the prompt they are disabled from
+  the moment they send until their run ends. After a
+  successful run, their canvas fits the view to the whole
+  diagram (only their view moves). Enter
   sends, Shift+Enter adds a line. Specs: a short line of
   copy, a full-width `Generate spec` button (disabled, with
   "Spec generation is coming soon."), and an example spec
@@ -237,7 +265,10 @@ app-specific wrappers in feature folders instead (e.g.
   in the user's cursor color (`text-background`) — each
   ringed in that color (`ring-2`, `ring-offset-2` in
   `--background`, which also separates the overlap).
-  Tooltip below with the name, "(you)" on your own. At most
+  Tooltip below with the name, "(you)" on your own.
+  While Ghost AI is thinking, its ring is replaced by a
+  spinning arc in its color in the same place
+  (`border-2`, top side transparent, `animate-spin`). At most
   4 avatars then a muted `+N` circle from `lg`, 2 then `+N`
   between `md` and `lg`, hidden below `md` (no room on
   phones). Only in a connected room; never on the editor
@@ -248,7 +279,9 @@ app-specific wrappers in feature folders instead (e.g.
   user's cursor color with a `--foreground` outline, and
   the name on a `rounded-full` pill in that color
   (`text-xs`, `font-medium`, `text-background`,
-  `shadow-sm`) below-right of the tip. Above the nodes and
+  `shadow-sm`) below-right of the tip. While Ghost AI is
+  thinking, its pill shows a small spinning `LoaderCircle`
+  (`size-3`) before "Ghost AI". Above the nodes and
   panels, `pointer-events: none`. Your own cursor is not
   drawn.
 - Project sidebar: floats above the canvas and slides in

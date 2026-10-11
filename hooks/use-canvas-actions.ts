@@ -3,7 +3,7 @@ import { useRedo, useUndo } from "@liveblocks/react/suspense";
 import { useReactFlow } from "@xyflow/react";
 
 // How long zoom and fit-view animations take.
-const VIEWPORT_ANIMATION_MS = 200;
+export const VIEWPORT_ANIMATION_MS = 200;
 
 export type CanvasActionName = "zoomIn" | "zoomOut" | "fitView" | "undo" | "redo";
 export type CanvasActions = Record<CanvasActionName, () => void>;

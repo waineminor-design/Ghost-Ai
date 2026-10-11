@@ -3,4 +3,7 @@ reviews:
   path_filters:
     # Third-party agent skills (vendor docs, overwritten on update).
     - "!.claude/skills/**"
+    - "!.agents/skills/**"
+    - "!.cursor/skills/**"
+    - "!.github/skills/**"
     - "!skills-lock.json"

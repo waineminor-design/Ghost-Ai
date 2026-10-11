@@ -18,10 +18,12 @@ Check the Liveblocks and Trigger.dev agent skills and the installed Vercel AI SD
 ### Generating Actions — use tool calling
 
 - do NOT rely on one big structured-output object (it fails schema validation with Gemini); instead use `generateText` with a `tools` object where each canvas action is its own tool with a zod input schema:
-    - `addNode` (shape from the existing shape list, label, color key from the existing palette, position, optional size)
+    - `addNode` (a short `key` the model picks, e.g. `api-gateway`; shape from the existing shape list, label, color key from the existing palette, position, optional size)
     - `updateNode` (label and/or color), `moveNode`, `resizeNode`, `deleteNode`
     - `addEdge` (source, target, optional label, optional handles), `updateEdge` (label), `deleteEdge`
-- collect the tool calls, validate them (known ids, known shapes and colors, sizes ≥ the canvas minimum), and ignore invalid ones
+- references: `source`/`target` and the node-editing tools accept either an existing node id from the canvas description or a `key` from an `addNode` call in the same response, so the model can connect nodes it is creating in this run
+- when applying, give each new node a unique canvas id and resolve every key to that id; a key used twice in one response, or a reference to an unknown id/key, makes that action invalid
+- collect the tool calls, validate them (known ids/keys, known shapes and colors, sizes ≥ the canvas minimum), and ignore invalid ones
 - a system prompt explains Ghost AI's purpose, the available shapes and what they usually mean, the color keys, and to lay diagrams out left-to-right with clear spacing and labeled edges
 - generated node/edge ids are unique (same id style as the canvas)
 

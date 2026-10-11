@@ -65,6 +65,12 @@ export type CanvasShape = (typeof CANVAS_SHAPES)[number]["name"];
 // The React Flow node type that renders every shape.
 export const SHAPE_NODE_TYPE = "shape";
 
+// Every shape node has one handle per side, with the side as its id (see
+// shape-node.tsx); edges name them in sourceHandle / targetHandle.
+export const NODE_HANDLE_SIDES = ["top", "right", "bottom", "left"] as const;
+
+export type NodeHandleSide = (typeof NODE_HANDLE_SIDES)[number];
+
 export function isCanvasShape(value: unknown): value is CanvasShape {
   return CANVAS_SHAPES.some((shape) => shape.name === value);
 }

@@ -5,7 +5,6 @@ import {
   BackgroundVariant,
   ConnectionMode,
   ReactFlow,
-  ReactFlowProvider,
   useReactFlow,
   type Connection,
   type DefaultEdgeOptions,
@@ -65,16 +64,9 @@ function isNotSelfConnection(connection: CanvasEdge | Connection) {
 // Also renders the templates dialog, since importing writes to the room,
 // and the navbar's Save button: the canvas is saved as the project's
 // snapshot (and restored from it into an empty room).
-// Must render inside a RoomProvider, a Suspense boundary and EditorShell.
+// Must render inside a RoomProvider, a ReactFlowProvider (CanvasRoom's,
+// shared with the AI sidebar), a Suspense boundary and EditorShell.
 export function Canvas({ projectId }: { projectId: string }) {
-  return (
-    <ReactFlowProvider>
-      <CanvasFlow projectId={projectId} />
-    </ReactFlowProvider>
-  );
-}
-
-function CanvasFlow({ projectId }: { projectId: string }) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, onDelete } =
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const isCanvasEmpty = nodes.length === 0 && edges.length === 0;

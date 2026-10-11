@@ -5,16 +5,65 @@ change.
 
 ## Current Phase
 
-- Feature 21 (Canvas Autosave) built; `tsc`, `eslint`,
-  `npm run build`, signed-out API checks and scripted
-  hook/validation tests pass. Not yet checked in the
-  browser or against the real Blob store.
+- Feature 27 (Design Agent Frontend) built; `tsc`,
+  `eslint`, `npm run build` pass and the run-tracking hook
+  passed offline tests. The live check (a real design run
+  in two browsers) still needs the owner. Features 25 and
+  26's live checks are also still pending; feature 27's
+  check covers most of them.
+- **Owner: restart both `npm run dev` and
+  `npm run trigger:dev`** (Ctrl+C in each, then start
+  again) so they pick up the new code. A new package
+  (`@trigger.dev/react-hooks`) was installed.
 
 ## Current Goal
 
-- Owner's browser check of feature 21 (signed in, with the
-  Blob token), plus the still-pending checks of features
-  18-20, then Trigger.dev setup
+- Owner runs feature 27's check: open the same project in
+  two browsers (e.g. a normal and a private window), with
+  `npm run dev` and `npm run trigger:dev` both running. In
+  one window, type "Design a URL shortener" in the AI
+  Architect tab and press Enter. Expected in both windows:
+  the message appears; the status line shows the spinner
+  and the steps; the composer is disabled; the diagram
+  appears on the canvas; Ghost AI's summary appears as a
+  chat reply; then the composer works again. In the window
+  that sent it, the canvas zooms to show the whole diagram.
+  Opening or reloading a project (with or without a run
+  going) never shows a "missing access token" error.
+  Failure checks (optional, harder to set up): a failed run
+  shows "I couldn't finish that design. Please try again."
+  once and re-enables the composer; stopping `npm run dev`
+  just before sending shows "Couldn't start the design —
+  try again" under the message, only in that window, and
+  the composer works again.
+- Then feature 26's check: open the same project in
+  two browsers (e.g. a normal and a private window, signed
+  in as two people, or one person twice). Expected: a
+  project with no chat shows the intro, the note that
+  messages are shared and AI replies arrive in the next
+  step, and the starter buttons, with no errors. Send a
+  message in one window (Enter or the arrow button): it
+  appears in both at once, under "You" in the sender's
+  window and under the sender's name in the other; no
+  placeholder reply appears. Reload: the messages are still
+  there. Press Ctrl+Z on the canvas: the message stays.
+  Shift+Enter still adds a line, the starter buttons still
+  fill the box, and the list scrolls to the newest.
+- Then feature 25's check: open the same project in
+  two browsers (e.g. a normal and a private window, signed
+  in as two people, or one person twice), copy its id from
+  the address bar (`/editor/<id>`), and in the Trigger.dev
+  dashboard test `design-agent` with
+  `{ "projectId": "<id>", "userId": "test", "startedByName": "Dashboard test", "prompt": "Design a URL shortener" }`.
+  Expected in both windows: the status line at the top of
+  the AI Architect tab shows a spinner with "Reading the
+  canvas", "Designing the changes", "Applying N changes"
+  and "started by Dashboard test"; the composer is disabled
+  with "Ghost AI is working…"; the Ghost AI cursor pill and
+  avatar show a spinner; then a check with "Added …" for
+  about 10 s, and the composer works again. A project that
+  never had a run shows no status line and no errors. Plus
+  the still-pending signed-in checks of features 18-23.
 
 ## Completed
 
@@ -1382,15 +1431,480 @@ change.
     overwritten, a non-member's 404, and restoring into an
     empty room.
 
+- 22 Trigger.dev Setup (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/22-TRIGGER-SETUP.md`):
+  - Installed `@trigger.dev/sdk` 4.7.3, and as dev
+    dependencies `@trigger.dev/build` 4.7.3 and the
+    `trigger.dev` CLI 4.7.3 (not named in the spec; the
+    `trigger:dev` script needs the CLI binary, and the docs
+    say to keep CLI, SDK and build on one version). No
+    Trigger.dev agent skill was installed, so the docs and
+    skills bundled in the SDK/CLI packages were used.
+  - `trigger.config.ts`: `project` from
+    `TRIGGER_PROJECT_REF`, `runtime: "node"`,
+    `dirs: ["./trigger"]`, `maxDuration: 3600`, retries
+    `{ maxAttempts: 3, factor: 2, minTimeoutInMs: 1000,
+    maxTimeoutInMs: 10000, randomize: true }` with
+    `enabledInDev: true` (the SDK default, set explicitly),
+    and `prismaExtension({ mode: "modern" })` — the mode the
+    SDK docs give for Prisma 7's `prisma-client` generator
+    with a driver adapter.
+  - `trigger/design-agent.ts` (`designAgent`, id
+    `design-agent`, payload `DesignAgentPayload`) and
+    `trigger/spec-generator.ts` (`specGenerator`, id
+    `spec-generator`, payload `SpecGeneratorPayload`): log
+    the payload with `logger.log` and return it.
+  - `package.json`: `"trigger:dev": "trigger dev"` (fixed
+    2026-10-11: it first said `trigger.dev dev`, which fails on
+    Windows — the installed CLI binary is named `trigger`). The
+    installed CLI loads `.env`, `.env.development`,
+    `.env.local`, `.env.development.local` from the project
+    folder by default (checked in its source,
+    `utilities/dotEnv.js`), and reads `TRIGGER_PROJECT_REF`
+    from them as the project ref for `dev` and `deploy`, so
+    no `--env-file` flag is needed.
+  - `.gitignore`: `.trigger/`.
+  - `CONTEXT/architecture.md`: `trigger/` and
+    `trigger.config.ts` described; new "Local Development"
+    section (two terminals, env loading, production task
+    env vars set in the Trigger.dev dashboard).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. The
+    CLI's own `loadConfig` + `buildWorker` (run offline
+    from a scratch script with a dummy project ref; no
+    login, no env files) resolved the config as above and
+    bundled both tasks. A throwaway probe task (in
+    `trigger/` only for that run, then deleted) importing
+    `lib/prisma`, `lib/project-data` and
+    `lib/canvas-storage` bundled too: `server-only` was
+    stubbed by the CLI and `@prisma/client` kept external;
+    loading the bundled files with Node exported
+    `design-agent`, `spec-generator` and the probe. No
+    `.env*` file was read or edited.
+  - Not verified (needs the owner's Trigger.dev login):
+    `npm run trigger:dev` connecting and both tasks showing
+    in the dashboard.
+
+- 23 Design Agent API (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/23-DESIGN-AGENT-API.md`):
+  - `prisma/models/task-run.prisma`: `TaskRun` (`id`,
+    `runId` unique and nullable, `projectId` relation with
+    cascade delete, `userId`, `kind` enum `TaskRunKind`
+    `DESIGN` | `SPEC`, `createdAt`), indexed on `projectId`;
+    `Project.taskRuns` back-relation. Migration
+    `20261011082447_add_task_run` created and applied to the
+    dev database (`prisma migrate status`: up to date).
+  - `lib/task-run-data.ts` (`server-only`): `createTaskRun`,
+    `setTaskRunRunId`, `deleteTaskRun`, `findTaskRunByRunId`.
+  - `app/api/ai/design/route.ts` (`POST`): signed out -> 401;
+    body must be a JSON object with a non-empty string
+    `projectId` and a string `prompt` that is 1-2000
+    characters after trimming -> 400 otherwise; not owner or
+    collaborator (or unknown project) -> 404. Then creates the
+    `TaskRun` row (`DESIGN`, `runId` null), triggers
+    `design-agent` with `{ projectId, prompt, userId }`
+    (type-only import of the task) and the row id as
+    idempotency key, stores the run id and returns `202
+    { runId }`. A failed trigger deletes the row and returns
+    `502` JSON.
+  - `app/api/ai/runs/[runId]/token/route.ts` (`POST`): signed
+    out -> 401; no `TaskRun` with that run id, or the user
+    can't open its project -> 404; otherwise `{ token }` from
+    `auth.createPublicToken` with `read.runs: [runId]` only
+    and `expirationTime: "1h"`. The secret key is never
+    returned.
+  - `CONTEXT/architecture.md` updated (routes, `TaskRun` in
+    the storage model, run-token access rule).
+  - Verified: `tsc`, `eslint`, `npm run build` pass (both
+    routes listed). On the running dev server, signed-out
+    `POST`s to both routes return 401 JSON. Scripted test (in
+    a scratch folder, not added to the project) ran the real
+    route files with fake Clerk identity, data module and
+    Trigger.dev SDK: 27 checks passed (401s; 400 for invalid
+    JSON, array body, missing/empty `projectId`, non-string,
+    missing, blank and 2001-character prompt, with no row
+    created; 404 without access; 202 with the run id, prompt
+    trimmed, 2000 characters accepted, exact payload, row id
+    as global idempotency key, order create -> trigger ->
+    store; failed trigger -> row deleted and 502; token 404
+    for unknown run, non-member and empty id; token scoped
+    to exactly that one run, 1 hour).
+  - Not verified (needs a signed-in browser, the owner's
+    `TRIGGER_SECRET_KEY` and `npm run trigger:dev`): a real
+    202 whose run appears in the Trigger.dev dashboard, and
+    a real token for it.
+
+- 24 Design Agent Logic (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/24-DESIGN-AGENT-LOGIC.md`):
+  - Installed `ai` 7.0.137 and `@ai-sdk/google` 4.0.93, and
+    `zod` 4.6.5 as a direct dependency (not named in the
+    spec; the tool schemas import it, and it was only there
+    as another package's dependency). Model:
+    `gemini-3.8-flash`, the installed provider docs' default
+    and listed with tool support, in the
+    `DESIGN_AGENT_MODEL` constant in
+    `trigger/design-agent.ts`.
+  - `trigger/design-agent.ts`: reads the canvas, sets the AI
+    presence, calls `generateText` with the tools (one step,
+    no `execute`), skips schema-invalid calls (the SDK
+    returns them flagged `invalid`, it does not throw),
+    applies the rest in one `mutateFlow()` call, records
+    status messages in run metadata, clears presence in
+    `finally`, returns `{ actionsApplied, summary }`
+    (summary = the model's text, if any, plus a count of
+    what changed and what was skipped).
+  - New `lib/` modules: `design-agent-canvas.ts` (read +
+    describe the room), `design-agent-tools.ts` (the 8 tools
+    with zod schemas; shapes and colors as enums from their
+    one definition), `design-agent-prompt.ts` (system
+    prompt), `design-agent-actions.ts` (validate + apply,
+    summary text), `design-agent-presence.ts` (AI presence).
+  - `lib/liveblocks.ts`: `getLiveblocks()` replaces the
+    `liveblocks` export and creates the client on first use
+    (the auth route now calls it); `AI_USER` added. Why: the
+    task file imports it, and the bundled task threw
+    "LIVEBLOCKS_SECRET_KEY is not set" when imported without
+    the key, which is how Trigger.dev indexes tasks (and
+    would break `trigger deploy`).
+  - `lib/canvas-shapes.ts`: `NODE_HANDLE_SIDES` /
+    `NodeHandleSide` (the 4 handle ids); the templates now
+    use it instead of their own copy of the type.
+  - `CONTEXT/architecture.md`: the agent's flow, presence,
+    the status metadata format, `getLiveblocks()`, the env
+    vars the worker needs.
+  - Env: the worker needs `GOOGLE_GENERATIVE_AI_API_KEY`,
+    `LIVEBLOCKS_SECRET_KEY` and `DATABASE_URL`. The installed
+    CLI loads them from `.env.local` (checked in feature 22
+    in its source); whether the three are actually in that
+    file wasn't checked (agents don't read it).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Scratch
+    tests (outside the project, no network, no keys): the
+    real tools run through `generateText` with the SDK's mock
+    model, then applied with the real `mutateFlow` to an
+    in-memory room — 36 checks: 8 tools sent with the shape
+    and color enums and the system prompt; one step; 3
+    schema-invalid / unknown-tool calls skipped without
+    throwing; 11 valid actions applied in one mutation (keys
+    resolved, also forward references; trimmed labels; shape
+    default sizes; canvas-style ids; edges `labeled` with
+    React Flow ids and default right/left handles;
+    deleteNode removes its edges); 8 invalid ones skipped
+    with reasons (duplicate key, too small, unknown
+    node/edge, self-edge, duplicate connection, empty
+    update). Canvas reader: parses the room JSON, drops
+    malformed nodes/edges, defaults sizes and old edge
+    labels, describes and centers correctly. The CLI's own
+    build bundled both tasks, and the bundled task now loads
+    without the Liveblocks key.
+  - Not verified (needs the owner's `npm run trigger:dev`,
+    keys and browser): a real Gemini run from the dashboard,
+    the diagram appearing live, the AI presence showing and
+    clearing.
+  - `npm audit` reports high-severity issues in `braces`,
+    `deepmerge-ts`, `mysql2` and `ws`; none were added by
+    this install (they were already in the tree via other
+    packages).
+  - First dashboard run (2026-10-11) hung 6+ minutes: a
+    temporary Gemini "high demand" spike with no timeout on
+    the model call. Fixed: 90 s timeout per call, one retry,
+    fallback gemini-3.8-flash → 3.7-flash → 3.6-flash
+    (gemini-2.5-flash is closed to new API users).
+  - Owner-verified after the fix (2026-10-11): a dashboard
+    test run on project `ai-test-umv2xz` completed in ~68 s;
+    the Ghost AI avatar and cursor appeared during the run,
+    and a labeled chat-app architecture (Web Client, API
+    Gateway, WebSocket server, storage, labeled edges)
+    appeared live on the canvas.
+- 25 AI Presence State (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/25-AI-PRESENCE-STATE.md`):
+  - `liveblocks.config.ts`: optional
+    `aiStatus?: LiveObject<AiStatus>` in Storage. The type
+    (`step` idle/started/thinking/applying/done/failed,
+    `message`, `runId`, `startedBy`, `updatedAt`), the
+    display rules (active; done/failed for 10 s; stale after
+    3 min) and a parser live in the new `lib/ai-status.ts`,
+    shared by server and client. Rooms are not seeded with
+    it (`createInitialStorage` unchanged).
+  - `trigger/design-agent.ts`: every status goes to run
+    metadata (as before) and to `aiStatus` through the new
+    `lib/design-agent-status.ts` (`mutateStorage`; creates
+    the key on the first write, replaces a non-LiveObject
+    value). Failed writes are logged, not thrown. `done`
+    gets the short change count in the room (the metadata
+    keeps the full summary); `failed` gets "The design agent
+    failed". New optional payload field `startedByName`;
+    `runId` is the run's id. `DesignAgentStep` is now
+    derived from `AiStatusStep` (one list of steps).
+  - Extra, not in the spec: when the agent falls back to the
+    next Gemini model it records `thinking` again ("Designing
+    the changes (trying another model)"). Why: three models
+    at up to 90 s each can exceed the 3-minute stale window,
+    which would hide the status and unlock the composer
+    while the run is still working.
+  - `POST /api/ai/design` passes the signed-in user's name
+    as `startedByName` (omitted when Clerk has none).
+  - UI: `components/editor/ai-status-line.tsx` (the status
+    line, `role="status"`, always mounted and collapsed
+    while empty so changes are announced) and
+    `hooks/use-ai-status.ts` (non-suspense `useStorage`; a
+    timer re-renders when the status should disappear). The
+    composer takes `isLocked` (textarea and send disabled,
+    placeholder "Ghost AI is working…").
+  - The AI sidebar now renders inside the room:
+    `CanvasRoom` takes `children` and owns the "Canvas"
+    `<section>`; `ProjectWorkspace` passes `<AiSidebar />`.
+    Side effect: the sidebar is now keyed with the room, so
+    the local (placeholder) chat resets when switching
+    projects instead of carrying over.
+  - Ghost AI spinners: the cursor pill shows a `LoaderCircle`
+    before the name, and the avatar's ring becomes a
+    spinning arc, while the Ghost AI user (id checked, not
+    just the flag) has `isThinking: true`. `AI_USER` moved
+    from `lib/liveblocks.ts` (`server-only`) to the new
+    `lib/ai-user.ts` so the client can check the id.
+  - `eslint.config.mjs`: `.trigger/**` ignored. `npm run
+    lint` was failing on the Trigger.dev dev worker's
+    generated bundles in `.trigger/tmp/` (git-ignored, 108
+    errors, none in source).
+  - `CONTEXT/architecture.md` and `CONTEXT/ui-context.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Scratch
+    tests (no network, no keys): 25 checks of the status
+    rules (missing/idle hidden; each active step shown until
+    3 min; done/failed until 10 s; malformed values ignored)
+    and 6 of the storage writer with a real `LiveObject`
+    root and a stubbed client (creates the key on the first
+    write, updates the same object after, replaces junk,
+    leaves `flow` alone).
+  - Not verified (needs the owner's browser and
+    `trigger:dev`): the live status line in two windows, the
+    spinners, the composer lock and unlock.
+- 26 Sidebar Chat Feed (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/26-SIDEBAR-CHAT-FEED.md`):
+  - `liveblocks.config.ts`: optional
+    `aiChat?: LiveList<LiveObject<AiChatMessage>>` in
+    Storage. Rooms are not seeded with it
+    (`createInitialStorage` unchanged); the first message
+    creates it.
+  - New `lib/ai-chat.ts` (shared by server and client): the
+    message type (`id`, `role`, `content`, `authorId`,
+    `authorName`, `createdAt`, optional `runId`), the limits
+    (200 messages, 4,000 characters), `normalizeAiChatContent`
+    (trim, then cap by characters so an emoji is never cut
+    in half), `appendAiChatMessage` (creates the list or
+    replaces a non-list value, pushes, drops the oldest past
+    200; the one append used by both sides) and
+    `parseAiChatMessages` (skips malformed messages, returns
+    at most the newest 200).
+  - `hooks/use-ai-chat.ts`: local message state and the
+    placeholder reply removed. Messages come from
+    `useStorage` (non-suspense; empty until storage loads),
+    the author from `useSelf` (Clerk id and name), sending
+    is a `useMutation`. The draft stays local. Sending is
+    disabled until the room has loaded and the user is
+    known.
+  - `components/editor/ai-chat-panel.tsx`: each bubble sits
+    under a muted author line ("You", the sender's name, or
+    "Ghost AI"); the empty-state note now says messages are
+    shared and AI replies arrive in the next step. Starter
+    chips, auto-scroll, Enter/Shift+Enter and the feature 25
+    composer lock unchanged.
+  - New `lib/design-agent-chat.ts` (`server-only`):
+    `appendAssistantMessage(roomId, content, runId?)` posts
+    a Ghost AI message through the Node client's
+    `mutateStorage` (same trim and caps; blank text posts
+    nothing; returns the message or null). Not called yet;
+    feature 27 uses it.
+  - Extra, not in the spec: chat sends run inside
+    `room.history.disable`. Why: every storage mutation
+    otherwise lands in the room's undo history, so the
+    canvas Undo (Ctrl+Z / the control bar) would have
+    deleted the user's last chat message for everyone.
+  - Extra, not in the spec: the composer stops at 4,000
+    characters (`maxLength`), so a long message is never
+    cut silently on send.
+  - `CONTEXT/architecture.md` and `CONTEXT/ui-context.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Scratch
+    tests (no network, no keys; real Liveblocks `LiveList` /
+    `LiveObject`, read back as the plain JSON `useStorage`
+    gives the sidebar): 31 checks — a room without the key
+    reads as empty and the first message creates the list
+    (leaving `flow` alone); 250 appends keep exactly the
+    newest 200; a junk value reads as empty and is replaced;
+    the parser skips malformed messages and keeps/omits
+    `runId`; trimming, the 4,000 cap and emoji-safe cutting;
+    the server helper with a stubbed client (right room,
+    Ghost AI author, trimmed text, `runId`, ISO time, blank
+    posts nothing, the 200 cap).
+  - Not verified (needs the owner's two browsers): messages
+    appearing live for another user, surviving a reload,
+    and Undo leaving them alone.
+- 27 Design Agent Frontend (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/27-DESIGN-AGENT-FRONTEND.md`):
+  - Installed `@trigger.dev/react-hooks` 4.7.3 (exact, the
+    same version as `@trigger.dev/sdk`).
+  - Sending: the chat panel posts the message to `aiChat`
+    (`useAiChat().send` now returns it), then
+    `hooks/use-design-run.ts` sends
+    `POST /api/ai/design` `{ projectId, prompt }`. On `202`
+    it keeps the `runId`, then asks
+    `POST /api/ai/runs/[runId]/token` for a token. A failed
+    start (error status, no connection, or no `runId` in the
+    answer) adds a local-only note under the message,
+    "Couldn't start the design — try again"
+    (`text-destructive`, `role="alert"`), and unlocks.
+  - Composer lock: the room's active `aiStatus` (feature 25)
+    for everyone, plus, for the sender, from sending until
+    their run ends (covers the gap before the run writes
+    `started`).
+  - Following: `components/editor/design-run-follower.tsx`
+    calls `useRealtimeRun` (payload, output and metadata
+    skipped) and is mounted by the sidebar only when both a
+    run id and a non-empty token exist, keyed by the run id.
+    It ends on the run's final state (`isCompleted`, or
+    `isCancelled`, which `isCompleted` doesn't include), so a
+    retried attempt doesn't end it. On the end the run id and
+    token are cleared. Mounted in `AiSidebar`, not the tab
+    panel, so switching to Specs doesn't drop it.
+  - Replies: `trigger/design-agent.ts` posts the summary to
+    `aiChat` with the `runId` after a successful apply
+    (before the `done` status), and the friendly failure
+    reply from the task's `onFailure` hook, which Trigger.dev
+    calls once after the last retry, so a run that fails
+    three attempts posts one reply. A failed post is logged,
+    never thrown.
+  - Canvas: after a successful run the sender's view fits
+    the whole diagram (`fitView`, the 200 ms animation from
+    `use-canvas-actions.ts`, now exported). To reach React
+    Flow from the sidebar, `ReactFlowProvider` moved from
+    `Canvas` up to `CanvasRoom`, around the canvas and the
+    sidebar.
+  - The empty chat's note no longer says AI replies arrive
+    in the next step.
+  - Extra, not in the spec: the composer now stops at 2,000
+    characters (was 4,000). Why: every message is now a
+    design prompt and the start route rejects prompts over
+    2,000, so a longer message would always get "Couldn't
+    start the design" and fail again on every retry. The
+    limit is one shared constant, `DESIGN_PROMPT_MAX_LENGTH`
+    in the new `lib/design-prompt.ts`, used by the route and
+    the composer. Stored chat messages keep the 4,000 cap
+    (Ghost AI's summaries can be longer).
+  - Extra, not in the spec: if the token request fails, the
+    sender stops following the run (and unlocks) instead of
+    showing an error: the run carries on, the room's status
+    line still locks the composer and the reply still
+    arrives. Only the fit view is lost. A broken realtime
+    subscription is handled the same way.
+  - `CONTEXT/architecture.md` and `CONTEXT/ui-context.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Scratch
+    tests (no network, no keys; real React and React Flow
+    provider in jsdom, stubbed `fetch`): 21 checks — the
+    start request's URL and body; error status, network
+    error and a `202` without `runId` each add the note to
+    the right message and unlock, with no token request;
+    after `202` the run is not followed until the token
+    arrives, the token request names the run, a second send
+    while busy is ignored; once followed, ending (success or
+    failure) clears the run and token and a new run can
+    start; a failed token request or an empty token unlocks
+    without a note and is never followed; unmounting
+    mid-request aborts it with no React errors.
+  - Not verified (needs the owner, `trigger:dev` and two
+    browsers): the live run end to end, the replies in the
+    chat, the realtime end detection, the fit view, and the
+    failure reply. Not tested offline: the follower itself
+    (it needs Trigger.dev's realtime API) and the task's
+    reply calls (the helper they use was tested in 26).
+  - Owner-verified end to end (2026-10-11, two accounts in two
+    browsers): a prompt typed in the AI Architect chat showed
+    in both windows, the status line ran (including "trying
+    another model" — gemini-3.8-flash was busy and the
+    fallback took over), the Ghost AI cursor and composer lock
+    appeared for both, a 5-node URL-shortener diagram was drawn
+    live, and Ghost AI's reply ("Added 5 nodes, added 5
+    edges.") appeared in both chats. The failure reply was not
+    exercised.
+  - Polish idea (not done): when the model returns only tool
+    calls, the reply is just the change count; it could name
+    the main components it added.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Trigger.dev setup, then AI design generation (22–26)
+- No spec yet after 27. Spec generation (the Specs tab and
+  `spec-generator`) is the next area in the overview.
 
 ## Open Questions
+
+- Sender's lock while a run waits to start (feature 27):
+  the sender's composer stays locked from sending until
+  Trigger.dev reports the run's end. If no worker picks the
+  run up (e.g. `npm run trigger:dev` isn't running), it
+  stays queued and the sender's composer stays locked until
+  they reload; other people aren't locked (the run never
+  wrote `started`). Say if the sender's lock should give up
+  after a while.
+- No chat reply for crashed, cancelled or timed-out runs
+  (feature 27): Trigger.dev doesn't call `onFailure` for
+  them, so only failures after all retries get "I couldn't
+  finish that design." Say if those should reply too.
+- Fit view timing (feature 27): the sender's view fits
+  when Trigger.dev reports the run's end. The diagram is
+  written to the room before that, so it has normally
+  arrived; if the room update were slower than the run
+  update, the fit would miss the newest nodes.
+
+- Message alignment in the shared chat (feature 26): every
+  person's messages stay on the right in `bg-primary` (as
+  `ui-context.md` already said), told apart by the author
+  line ("You" or the name). Say if other people's messages
+  should sit on the left instead, like a group chat.
+- Clearing the chat (feature 26): the spec has no way to
+  delete messages or clear the conversation; the room
+  keeps the newest 200. Say if a "Clear chat" is wanted.
+- Two people sending at the 200 cap at the same moment can
+  each drop the same oldest message, leaving 201 until the
+  next send trims it. The sidebar only ever shows the
+  newest 200, so nobody sees it.
+
+- Retried design runs (feature 25): a failed attempt writes
+  `failed` to the room before Trigger.dev retries it, so the
+  status line shows the warning and the composer unlocks
+  for the backoff (a few seconds), then the next attempt
+  shows `started` again. Same as the run metadata. Say if
+  only the final failure should reach the room.
+- Composer placeholder while locked (feature 25): a draft
+  typed before the run stays in the (disabled) box, so the
+  "Ghost AI is working…" placeholder only shows when the
+  box is empty. Say if the draft should be hidden instead.
+
+- Design agent on a project whose room was never opened
+  (feature 24): Liveblocks creates a room when someone first
+  joins it, so a run for a project nobody has opened yet
+  can't read the room and fails (after 3 attempts). The
+  spec's test opens the project first. Say if the agent
+  should create the room itself.
+- Design agent summary (feature 24): the spec only says the
+  task returns a `summary`. It is the model's own text, if
+  it wrote any, followed by a count of what changed and how
+  many actions were skipped.
+
+- Idempotency of `POST /api/ai/design` (feature 23): each
+  request creates a new `TaskRun` row, and the row id is the
+  idempotency key, as the spec says. That stops the SDK's own
+  retries of the trigger call from starting a second run, but
+  a client that re-sends the whole request gets a new row and
+  a second run. Making re-sent requests safe would need a
+  client-supplied request id (not in the spec). Say if it
+  should be added.
+- Token route failure (feature 23): the spec doesn't say what
+  to return when Trigger.dev can't create the token; it
+  returns `502` JSON, like a failed trigger.
 
 - Canvas snapshots when a project is deleted (feature 21):
   deleting a project removes its row but not
@@ -1458,6 +1972,55 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- The design agent writes through `mutateFlow()` from
+  `@liveblocks/react-flow/node`, not hand-built
+  `LiveObject`s. Why: it is the package's own server-side
+  writer and uses the same conversion as `useLiveblocksFlow`
+  (default `flow` key, default sync config), so AI nodes
+  sync and render exactly like browser ones; one call is one
+  `mutateStorage` mutation.
+- The agent validates the model's actions inside that
+  mutation, against the room as it is then, not the copy it
+  read before calling Gemini. Why: people may have deleted
+  or added nodes while the model was thinking.
+- `addNode` calls are applied first, then the rest in the
+  model's order. Why: the spec lets any call reference a
+  key from an `addNode` in the same response, including one
+  that comes later in the list. A key equal to an existing
+  node id is rejected so references are never ambiguous.
+- Run metadata carries the agent's status messages. Why:
+  the UI already gets a run-scoped token (feature 23), and
+  Trigger.dev realtime delivers metadata changes with the
+  run, so no extra storage or channel is needed.
+- The Liveblocks client is created on first use
+  (`getLiveblocks()`), never at import. Why: Trigger.dev
+  imports task files to index them, including at deploy
+  where the key may be missing.
+
+- Run tokens go to any owner or collaborator of the run's
+  project, not only the user who started it (feature 23
+  spec). `architecture.md` said "scoped to the user who
+  started the run"; it now matches the spec. `TaskRun.userId`
+  still records who started it.
+- The design run's idempotency key is the `TaskRun` row id
+  made with `idempotencyKeys.create(id, { scope: "global" })`.
+  Outside a task a raw string key gets the same hash, but the
+  explicit scope doesn't depend on that (Trigger.dev skill's
+  "raw key isn't global" warning).
+
+- No `build.conditions: ["react-server"]` in
+  `trigger.config.ts` to make `server-only` importable: the
+  CLI's bundler already replaces `server-only` with a stub
+  (its built-in "polyshed" plugin), and a custom condition
+  would also be passed to Node at runtime and change how
+  every package resolves.
+- On Windows the dev CLI logs (debug level only) that it
+  could not symlink `@prisma/client` into its build folder
+  (`EPERM`; symlinks need Developer Mode). Harmless: the
+  build folder is inside the project (`.trigger/`), so Node
+  finds `@prisma/client` in the project's `node_modules`
+  (confirmed by loading the bundle).
 
 - Canvas snapshots are read and written only by the canvas
   route on the server (private Blob, token server-side);

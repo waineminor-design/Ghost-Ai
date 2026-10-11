@@ -1,38 +1,68 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+// The regular (non-suspense) hooks: the AI sidebar renders while the room
+// is still connecting, and must not suspend. Until storage has loaded the
+// chat reads as empty and nothing can be sent.
+import { shallow, useMutation, useRoom, useSelf, useStorage } from "@liveblocks/react";
 
-export interface AiChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-}
+import {
+  appendAiChatMessage,
+  normalizeAiChatContent,
+  parseAiChatMessages,
+  type AiChatMessage,
+} from "@/lib/ai-chat";
 
-const PLACEHOLDER_REPLY = "AI design generation is coming soon.";
+// Same reference every time, so a room without a chat doesn't re-render
+// the panel on every unrelated storage change.
+const NO_MESSAGES: readonly never[] = [];
 
 export interface AiChat {
   messages: AiChatMessage[];
+  // Clerk id of the signed-in user, to tell their own messages apart; null
+  // until the room has connected.
+  selfId: string | null;
   draft: string;
   setDraft: (draft: string) => void;
-  // False while the draft is empty or only whitespace.
+  // False while the draft is blank or the room isn't ready.
   canSend: boolean;
-  send: () => void;
+  // Posts the draft and clears it; returns the posted message, or null
+  // when nothing could be sent.
+  send: () => AiChatMessage | null;
 }
 
-// Local state of the AI Architect chat, owned by AiSidebar so it survives
-// switching tabs. No AI calls yet: each message gets a placeholder reply.
+// The AI Architect chat, owned by AiSidebar. Messages live in the room's
+// `aiChat` storage, so everyone in the project sees the same conversation
+// in real time and it survives a reload; the draft stays local, so it
+// survives switching tabs. Sending stays out of the undo history, so the
+// canvas Undo never removes a chat message. Ghost AI's replies are posted
+// by the design agent. Must be used inside a RoomProvider.
 export function useAiChat(): AiChat {
-  const [messages, setMessages] = useState<AiChatMessage[]>([]);
+  // null until storage has loaded; NO_MESSAGES for a room without a chat.
+  const stored = useStorage((root) => root.aiChat ?? NO_MESSAGES);
+  const messages = useMemo(() => parseAiChatMessages(stored), [stored]);
+  const self = useSelf((me) => ({ id: me.id, name: me.info.name }), shallow);
   const [draft, setDraft] = useState("");
-  const content = draft.trim();
+  const room = useRoom();
+  const content = normalizeAiChatContent(draft);
+  const canSend = content !== "" && stored !== null && self !== null;
 
-  function send() {
-    if (!content) return;
-    setMessages((previous) => [
-      ...previous,
-      { id: crypto.randomUUID(), role: "user", content },
-      { id: crypto.randomUUID(), role: "assistant", content: PLACEHOLDER_REPLY },
-    ]);
+  const appendMessage = useMutation(({ storage }, message: AiChatMessage) => {
+    appendAiChatMessage(storage, message);
+  }, []);
+
+  function send(): AiChatMessage | null {
+    if (!canSend) return null;
+    const message: AiChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content,
+      authorId: self.id,
+      authorName: self.name,
+      createdAt: new Date().toISOString(),
+    };
+    room.history.disable(() => appendMessage(message));
     setDraft("");
+    return message;
   }
 
-  return { messages, draft, setDraft, canSend: content !== "", send };
+  return { messages, selfId: self?.id ?? null, draft, setDraft, canSend, send };
 }
