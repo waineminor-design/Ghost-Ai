@@ -32,26 +32,32 @@ paths below are relative to it.
   run id; passes the signed-in user's name as
   `startedByName`; prompts are 1 to 2,000 characters after
   trimming, `DESIGN_PROMPT_MAX_LENGTH` in
-  `lib/design-prompt.ts`); `POST /api/ai/runs/[runId]/token`
-  returns a Trigger.dev public token that can read only that
-  run.
+  `lib/design-prompt.ts`); `POST /api/ai/spec`
+  (`{ projectId }`) starts a `spec-generator` run the same
+  way (`TaskRun` kind `SPEC`, row id as the idempotency key,
+  202 `{ runId }`; no one-run-at-a-time check);
+  `POST /api/ai/runs/[runId]/token` returns a Trigger.dev
+  public token that can read only that run (design or spec).
+  Both start routes save the run id with
+  `saveTaskRunRunId` (`lib/task-run-data.ts`, 3 attempts);
+  if it can't be saved the run is cancelled, the row deleted
+  and the route answers 502.
 - `trigger/` — Trigger.dev task definitions (AI design
   generation, spec generation). The only place long-running
   AI work runs. One task per file, each a named export with
   a typed payload: `design-agent` (`trigger/design-agent.ts`,
   `{ projectId, prompt, userId, startedByName? }`) and `spec-generator`
-  (`trigger/spec-generator.ts`, `{ projectId, userId }`).
-  `spec-generator` is still a placeholder that logs and
-  returns its input. App code triggers them by id with a
+  (`trigger/spec-generator.ts`,
+  `{ projectId, userId, startedByName? }`). App code triggers them by id with a
   type-only import
   (`tasks.trigger<typeof designAgent>("design-agent", ...)`),
   never by importing the task itself.
 - The design agent (`design-agent`, feature 24) reads the
   room's nodes and edges with the Liveblocks Node client
   (`lib/design-agent-canvas.ts`), sends Gemini a compact
-  description of them plus the prompt (model id in the
-  `DESIGN_AGENT_MODEL` constant in the task file; key
-  `GOOGLE_GENERATIVE_AI_API_KEY`), and gets back tool calls,
+  description of them plus the prompt (models through the
+  shared helper below; key `GOOGLE_GENERATIVE_AI_API_KEY`),
+  and gets back tool calls,
   one per canvas action (`lib/design-agent-tools.ts`:
   `addNode`, `updateNode`, `moveNode`, `resizeNode`,
   `deleteNode`, `addEdge`, `updateEdge`, `deleteEdge`; the
@@ -117,6 +123,37 @@ paths below are relative to it.
     apply would retry the run and apply twice). Crashed,
     cancelled and timed-out runs get no failure reply
     (Trigger.dev skips `onFailure` for them).
+- Shared model helper (`lib/ai-models.ts`, feature 28):
+  `withModelFallback` is how both AI tasks call Gemini. It
+  tries `AI_MODELS` in order (gemini-3.8-flash, then
+  3.7-flash, then 3.6-flash), each with a 90 s timeout and
+  one AI SDK retry, calls `onFallback` before each later
+  model, stops at once when the run is cancelled, and
+  otherwise throws the last model's error. Each task passes
+  its own `generateText` call. Change the models there.
+- The spec generator (`spec-generator`, feature 28) reads
+  the project's name (Prisma), the room's canvas (the design
+  agent's `readRoomCanvas` / `describeCanvas`) and the newest
+  50 messages of the room's `aiChat`
+  (`lib/spec-generator-chat.ts`), and asks Gemini (no tools,
+  system prompt `lib/spec-generator-prompt.ts`) for a
+  Markdown technical spec: Overview, Components (one
+  subsection per node), Data Flow, Data Storage, APIs and
+  Integrations, Scaling and Reliability, Security, Open
+  Questions, with assumptions listed explicitly. A reply
+  wrapped in one code fence is unwrapped; an empty one fails
+  the attempt (retried). An empty canvas (or a deleted
+  project) fails at once with `AbortTaskRunError` (no
+  retries, no model call): "Add something to the canvas
+  before generating a spec". Returns
+  `{ markdown, title }`, title "<Project name> — Technical
+  Spec"; nothing is stored yet (feature 29). Status steps in
+  run metadata only (not the room): `status` /
+  `statusLog` as `{ step, message, at }` (types
+  `SpecGeneratorStatus` / `SpecGeneratorStep` in the task
+  file), steps `started`, `generating` (again on a model
+  fallback), `done`, `failed` (message is the empty-canvas
+  text, or "The spec generator failed").
 - `trigger.config.ts` (repo root) — Trigger.dev config:
   project ref from `TRIGGER_PROJECT_REF`, Node runtime,
   tasks in `./trigger`, max duration 3600 s, retries on by

@@ -134,6 +134,18 @@ export async function getProjectOwnerId(
   return project?.ownerId ?? null;
 }
 
+// The project's name, or null when the project does not exist. Callers
+// check project access first.
+export async function getProjectName(
+  projectId: string,
+): Promise<string | null> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { name: true },
+  });
+  return project?.name ?? null;
+}
+
 // The canvas snapshot's Blob path (Project.canvasJsonPath); null when the
 // project has none or does not exist. Internal: never sent to clients.
 // Callers check project access first.

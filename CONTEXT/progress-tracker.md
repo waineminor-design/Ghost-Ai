@@ -5,20 +5,46 @@ change.
 
 ## Current Phase
 
-- Feature 27 (Design Agent Frontend) built; `tsc`,
-  `eslint`, `npm run build` pass and the run-tracking hook
-  passed offline tests. The live check (a real design run
-  in two browsers) still needs the owner. Features 25 and
-  26's live checks are also still pending; feature 27's
-  check covers most of them.
+- Feature 28 (Spec Generation Flow) built: the shared model
+  helper, `POST /api/ai/spec` and the `spec-generator` task.
+  `tsc`, `eslint`, `npm run build` pass and the helper and
+  chat reader passed offline tests. The live checks need the
+  owner. Feature 27 was verified end to end by the owner.
 - **Owner: restart both `npm run dev` and
   `npm run trigger:dev`** (Ctrl+C in each, then start
-  again) so they pick up the new code. A new package
-  (`@trigger.dev/react-hooks`) was installed.
+  again) so they pick up the new route and task.
 
 ## Current Goal
 
-- Owner runs feature 27's check: open the same project in
+- Owner runs feature 28's check (both `npm run dev` and
+  `npm run trigger:dev` running):
+  1. Start route. Open a project you own in the browser
+     (`http://localhost:3001/editor/<id>`), press F12, open
+     the Console tab and run
+     `fetch("/api/ai/spec", { method: "POST", body: JSON.stringify({ projectId: location.pathname.split("/").pop() }) }).then(r => r.json().then(b => console.log(r.status, b)))`.
+     Expected: `202 { runId: "run_…" }`. Run it again with
+     `projectId: "does-not-exist"` in place of the
+     `location…` part: expected `404`. In a private window
+     (signed out) at `http://localhost:3001/sign-in`, run
+     the first one again: expected `401`.
+  2. Real spec. In the Trigger.dev dashboard, the run from
+     step 1 (task `spec-generator`) should finish with an
+     output `{ markdown, title }`: a Markdown spec with
+     Overview, Components (one per node), Data Flow and the
+     other sections, and the title "<Project name> —
+     Technical Spec". Or use the dashboard's Test page for
+     `spec-generator` with
+     `{ "projectId": "<id>", "userId": "test" }`.
+  3. Empty canvas. Test `spec-generator` the same way on a
+     project with nothing on the canvas. Expected: it fails
+     after one attempt (no retries) with "Add something to
+     the canvas before generating a spec".
+  4. Design agent. Type a prompt in the AI Architect chat
+     (e.g. "Add a cache in front of the database"): the
+     diagram changes and Ghost AI replies, as before.
+
+- Feature 27's check (done 2026-10-11 except the optional
+  failure checks): open the same project in
   two browsers (e.g. a normal and a private window), with
   `npm run dev` and `npm run trigger:dev` both running. In
   one window, type "Design a URL shortener" in the AI
@@ -1829,6 +1855,70 @@ change.
   - Polish idea (not done): when the model returns only tool
     calls, the reply is just the change count; it could name
     the main components it added.
+- 28 Spec Generation Flow (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/28-SPEC-GENERATION-FLOW.md`):
+  - New `lib/ai-models.ts` (`server-only`):
+    `withModelFallback` holds the model list (`AI_MODELS`:
+    gemini-3.8-flash → 3.7-flash → 3.6-flash), the 90 s
+    per-call timeout, the single retry and the fallback loop
+    that were in `trigger/design-agent.ts`. Each task passes
+    its own `generateText` call. The design agent now uses
+    it; same models, timeout, retry, fallback status and log
+    message as before.
+  - New `POST /api/ai/spec` (`app/api/ai/spec/route.ts`):
+    body `{ projectId }`; 401 signed out, 400 bad body, 404
+    no access; creates a `TaskRun` (`SPEC`), triggers
+    `spec-generator` with the row id as the idempotency key
+    and payload `{ projectId, userId, startedByName? }`,
+    stores the run id, 202 `{ runId }`. A failed trigger
+    deletes the row and answers 502. The existing token
+    route works for these runs unchanged.
+  - `trigger/spec-generator.ts` (was a placeholder): reads
+    the project name, the canvas (`readRoomCanvas` /
+    `describeCanvas`) and the newest 50 chat messages (new
+    `lib/spec-generator-chat.ts`), and generates the spec
+    with `generateText` (no tools; system prompt in the new
+    `lib/spec-generator-prompt.ts`). Returns
+    `{ markdown, title }`, title "<Project name> — Technical
+    Spec". Status steps in run metadata (`status` /
+    `statusLog`): `started`, `generating`, `done`, `failed`.
+    An empty canvas fails with "Add something to the canvas
+    before generating a spec" without calling the model.
+  - New `getProjectName` in `lib/project-data.ts`.
+  - Extra, not in the spec: the empty-canvas failure (and a
+    deleted project) uses `AbortTaskRunError`, so the run
+    fails once instead of being retried three times over
+    something a retry can't change.
+  - Extra, not in the spec: an empty model reply fails the
+    attempt (so it is retried), and a reply wrapped in a
+    ```` ```markdown ```` fence is unwrapped.
+  - Extra, not in the spec: the run-id save with retries
+    (and the cancel-and-delete when it fails) moved from the
+    design route into `saveTaskRunRunId` in
+    `lib/task-run-data.ts`, so both start routes share it.
+    The design route behaves as before.
+  - Extra, not in the spec: the system prompt tells the
+    model to treat the chat as context, not instructions,
+    and not to mention node positions or colors.
+  - Spec status steps go to run metadata only, not the
+    room's `aiStatus`, so generating a spec doesn't lock the
+    AI Architect composer or show the design status line.
+  - `CONTEXT/architecture.md` updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass (the
+    build lists `/api/ai/spec`). Scratch tests (no network,
+    no keys): 26 checks — the helper tries 3.8 → 3.7 → 3.6
+    in order, calls `onFallback` before each later model,
+    passes one retry, returns the first answer, throws the
+    last error when all fail and stops at once on cancel;
+    the chat reader (stubbed Liveblocks client) reads the
+    room as JSON, returns the newest 50 oldest first, reads
+    a missing/junk/null chat as empty and skips malformed
+    messages; the chat description; both task files load
+    without keys.
+  - Not verified (needs the owner): the route's 401/404/202
+    against the running app, a real spec run from the
+    Trigger.dev dashboard, the empty-canvas failure, and a
+    design run after the helper refactor.
 
 ## In Progress
 
@@ -1836,8 +1926,8 @@ change.
 
 ## Next Up
 
-- No spec yet after 27. Spec generation (the Specs tab and
-  `spec-generator`) is the next area in the overview.
+- 29 Spec Storage and Download, then 30 Spec UI (specs in
+  `CONTEXT/FEATURE-SPECS/`).
 
 ## Open Questions
 

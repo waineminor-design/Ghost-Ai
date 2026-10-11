@@ -1,8 +1,8 @@
-import { google } from "@ai-sdk/google";
 import { mutateFlow } from "@liveblocks/react-flow/node";
 import { logger, metadata, task } from "@trigger.dev/sdk";
 import { generateText } from "ai";
 
+import { withModelFallback } from "@/lib/ai-models";
 import type { AiStatusStep } from "@/lib/ai-status";
 import type { CanvasEdge, CanvasNode } from "@/lib/canvas-types";
 import {
@@ -22,18 +22,6 @@ import { writeAiStatus } from "@/lib/design-agent-status";
 import { designAgentTools } from "@/lib/design-agent-tools";
 import { getLiveblocks } from "@/lib/liveblocks";
 
-// The Gemini models the agent uses, in order: if one is overloaded, errors
-// or doesn't answer within the timeout, the next is tried. Change them here.
-const DESIGN_AGENT_MODELS = [
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-] as const;
-
-// Longest a single model call may take before moving to the next model, so
-// a stalled request can't hold the run (and the AI presence) for an hour.
-const MODEL_TIMEOUT_MS = 90_000;
-
 type DesignGenerationInput = {
   prompt: string;
   // The run's abort signal (run cancelled or max duration reached).
@@ -42,31 +30,21 @@ type DesignGenerationInput = {
   onFallback: () => Promise<void>;
 };
 
-// Asks each model in turn until one answers. Cancelling the run stops
-// immediately; otherwise the last model's error is thrown.
-async function generateDesign({ prompt, signal, onFallback }: DesignGenerationInput) {
-  let lastError: unknown;
-  for (const [index, model] of DESIGN_AGENT_MODELS.entries()) {
-    if (index > 0) await onFallback();
-    try {
-      return await generateText({
-        model: google(model),
+// Asks the shared models in turn (lib/ai-models.ts) for the design's tool
+// calls.
+function generateDesign({ prompt, signal, onFallback }: DesignGenerationInput) {
+  return withModelFallback({
+    label: "design-agent",
+    signal,
+    onFallback,
+    call: (settings) =>
+      generateText({
+        ...settings,
         system: DESIGN_AGENT_SYSTEM_PROMPT,
         tools: designAgentTools,
         prompt,
-        abortSignal: AbortSignal.any([signal, AbortSignal.timeout(MODEL_TIMEOUT_MS)]),
-        maxRetries: 1,
-      });
-    } catch (error) {
-      if (signal.aborted) throw error;
-      lastError = error;
-      logger.warn("design-agent model call failed; trying the next model", {
-        model,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-  throw lastError;
+      }),
+  });
 }
 
 export interface DesignAgentPayload {

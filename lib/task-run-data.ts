@@ -37,6 +37,25 @@ export async function setTaskRunRunId(
   await prisma.taskRun.update({ where: { id }, data: { runId } });
 }
 
+const SAVE_RUN_ID_ATTEMPTS = 3;
+
+// setTaskRunRunId, retried a couple of times; the token route can only
+// find the run through this row. False when every attempt failed.
+export async function saveTaskRunRunId(
+  id: string,
+  runId: string,
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= SAVE_RUN_ID_ATTEMPTS; attempt++) {
+    try {
+      await setTaskRunRunId(id, runId);
+      return true;
+    } catch (error) {
+      console.error(`Saving run id ${runId} (attempt ${attempt}) failed`, error);
+    }
+  }
+  return false;
+}
+
 // How many runs of `kind` were started for the project in the last
 // `withinMs` milliseconds. Used to block a second design run while the
 // first one is queued and hasn't written its room status yet.
