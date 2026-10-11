@@ -149,19 +149,25 @@ app-specific wrappers in feature folders instead (e.g.
   <name>" (muted); after it ends the result with a `Check`
   (done) or a `TriangleAlert` (`text-destructive`, failed)
   for ~10 s; nothing when idle, missing, or an unfinished
-  status is over 3 minutes old. Below it, messages in a
+  status is over 3 minutes old. Below it, the project's
+  shared messages (the same for everyone, live) in a
   `ScrollArea` that fills the
   space above the composer and scrolls to the newest; user
   bubbles right-aligned (`bg-primary`), assistant bubbles
   left-aligned (`bg-muted`) after a small round `Sparkles`
   icon (`bg-sidebar-accent`); bubbles `rounded-lg`, `text-sm`,
-  at most 85% wide. While empty: a centered `Sparkles`
+  at most 85% wide, each under a muted `text-xs` author
+  line: the sender's name, "You" for your own, "Ghost AI"
+  for assistant messages. While empty: a centered `Sparkles`
   circle, the intro "Describe a system and I'll design it on
-  the canvas" and outline starter-prompt buttons that fill
+  the canvas", a muted `text-xs` note that messages are
+  shared with the project and AI replies arrive in the
+  next step, and outline starter-prompt buttons that fill
   the composer. Composer pinned at the bottom
   (`border-t`): a one-line `Textarea` that grows to six
-  lines and then scrolls, and an icon-only send button
-  (`ArrowUp`, disabled while the text is blank). While a
+  lines and then scrolls (stops at 4,000 characters), and
+  an icon-only send button (`ArrowUp`, disabled while the
+  text is blank or the room hasn't connected). While a
   run is active (status line spinner showing) both are
   disabled for everyone in the room, with the placeholder
   "Ghost AI is working…"; a draft already typed stays. Enter

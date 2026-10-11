@@ -5,16 +5,29 @@ change.
 
 ## Current Phase
 
-- Feature 25 (AI Presence State) built; `tsc`, `eslint`,
-  `npm run build` pass and the status rules and storage
-  writer passed offline tests. The live check (a dashboard
-  run seen by two browsers) still needs the owner.
-- **Owner: restart `npm run dev` and `npm run trigger:dev`**
-  (Ctrl+C, then start again) so both pick up the new code.
+- Feature 26 (Sidebar Chat Feed) built; `tsc`, `eslint`,
+  `npm run build` pass and the chat storage logic passed
+  offline tests. The live check (two browsers) still needs
+  the owner. Feature 25's live check is also still pending.
+- **Owner: restart `npm run dev`** (Ctrl+C, then start
+  again) so it picks up the new code.
 
 ## Current Goal
 
-- Owner runs feature 25's check: open the same project in
+- Owner runs feature 26's check: open the same project in
+  two browsers (e.g. a normal and a private window, signed
+  in as two people, or one person twice). Expected: a
+  project with no chat shows the intro, the note that
+  messages are shared and AI replies arrive in the next
+  step, and the starter buttons, with no errors. Send a
+  message in one window (Enter or the arrow button): it
+  appears in both at once, under "You" in the sender's
+  window and under the sender's name in the other; no
+  placeholder reply appears. Reload: the messages are still
+  there. Press Ctrl+Z on the canvas: the message stays.
+  Shift+Enter still adds a line, the starter buttons still
+  fill the box, and the list scrolls to the newest.
+- Then feature 25's check: open the same project in
   two browsers (e.g. a normal and a private window, signed
   in as two people, or one person twice), copy its id from
   the address bar (`/editor/<id>`), and in the Trigger.dev
@@ -1643,6 +1656,67 @@ change.
   - Not verified (needs the owner's browser and
     `trigger:dev`): the live status line in two windows, the
     spinners, the composer lock and unlock.
+- 26 Sidebar Chat Feed (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/26-SIDEBAR-CHAT-FEED.md`):
+  - `liveblocks.config.ts`: optional
+    `aiChat?: LiveList<LiveObject<AiChatMessage>>` in
+    Storage. Rooms are not seeded with it
+    (`createInitialStorage` unchanged); the first message
+    creates it.
+  - New `lib/ai-chat.ts` (shared by server and client): the
+    message type (`id`, `role`, `content`, `authorId`,
+    `authorName`, `createdAt`, optional `runId`), the limits
+    (200 messages, 4,000 characters), `normalizeAiChatContent`
+    (trim, then cap by characters so an emoji is never cut
+    in half), `appendAiChatMessage` (creates the list or
+    replaces a non-list value, pushes, drops the oldest past
+    200; the one append used by both sides) and
+    `parseAiChatMessages` (skips malformed messages, returns
+    at most the newest 200).
+  - `hooks/use-ai-chat.ts`: local message state and the
+    placeholder reply removed. Messages come from
+    `useStorage` (non-suspense; empty until storage loads),
+    the author from `useSelf` (Clerk id and name), sending
+    is a `useMutation`. The draft stays local. Sending is
+    disabled until the room has loaded and the user is
+    known.
+  - `components/editor/ai-chat-panel.tsx`: each bubble sits
+    under a muted author line ("You", the sender's name, or
+    "Ghost AI"); the empty-state note now says messages are
+    shared and AI replies arrive in the next step. Starter
+    chips, auto-scroll, Enter/Shift+Enter and the feature 25
+    composer lock unchanged.
+  - New `lib/design-agent-chat.ts` (`server-only`):
+    `appendAssistantMessage(roomId, content, runId?)` posts
+    a Ghost AI message through the Node client's
+    `mutateStorage` (same trim and caps; blank text posts
+    nothing; returns the message or null). Not called yet;
+    feature 27 uses it.
+  - Extra, not in the spec: chat sends run inside
+    `room.history.disable`. Why: every storage mutation
+    otherwise lands in the room's undo history, so the
+    canvas Undo (Ctrl+Z / the control bar) would have
+    deleted the user's last chat message for everyone.
+  - Extra, not in the spec: the composer stops at 4,000
+    characters (`maxLength`), so a long message is never
+    cut silently on send.
+  - `CONTEXT/architecture.md` and `CONTEXT/ui-context.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Scratch
+    tests (no network, no keys; real Liveblocks `LiveList` /
+    `LiveObject`, read back as the plain JSON `useStorage`
+    gives the sidebar): 31 checks — a room without the key
+    reads as empty and the first message creates the list
+    (leaving `flow` alone); 250 appends keep exactly the
+    newest 200; a junk value reads as empty and is replaced;
+    the parser skips malformed messages and keeps/omits
+    `runId`; trimming, the 4,000 cap and emoji-safe cutting;
+    the server helper with a stubbed client (right room,
+    Ghost AI author, trimmed text, `runId`, ISO time, blank
+    posts nothing, the 200 cap).
+  - Not verified (needs the owner's two browsers): messages
+    appearing live for another user, surviving a reload,
+    and Undo leaving them alone.
 
 ## In Progress
 
@@ -1650,9 +1724,22 @@ change.
 
 ## Next Up
 
-- 26 Sidebar Chat Feed, 27 Design Agent Frontend
+- 27 Design Agent Frontend
 
 ## Open Questions
+
+- Message alignment in the shared chat (feature 26): every
+  person's messages stay on the right in `bg-primary` (as
+  `ui-context.md` already said), told apart by the author
+  line ("You" or the name). Say if other people's messages
+  should sit on the left instead, like a group chat.
+- Clearing the chat (feature 26): the spec has no way to
+  delete messages or clear the conversation; the room
+  keeps the newest 200. Say if a "Clear chat" is wanted.
+- Two people sending at the 200 cap at the same moment can
+  each drop the same oldest message, leaving 201 until the
+  next send trims it. The sidebar only ever shows the
+  newest 200, so nobody sees it.
 
 - Retried design runs (feature 25): a failed attempt writes
   `failed` to the room before Trigger.dev retries it, so the

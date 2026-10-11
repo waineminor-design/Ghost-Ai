@@ -98,6 +98,13 @@ paths below are relative to it.
     model's text. A failed write is logged, never thrown.
     The type, the display rules and the parser are in
     `lib/ai-status.ts` (shared by server and client).
+  - Chat replies (feature 26): `appendAssistantMessage`
+    in `lib/design-agent-chat.ts` (`server-only`) appends a
+    Ghost AI message (author `AI_USER`, optional `runId`)
+    to the room's `aiChat` through `mutateStorage`, with
+    the same trim, length cap and 200-message cap as the
+    sidebar; blank text posts nothing. Not called yet:
+    feature 27 connects the agent to the chat.
 - `trigger.config.ts` (repo root) — Trigger.dev config:
   project ref from `TRIGGER_PROJECT_REF`, Node runtime,
   tasks in `./trigger`, max duration 3600 s, retries on by
@@ -141,8 +148,12 @@ paths below are relative to it.
   zoom, fit view, undo/redo through the Liveblocks room
   history) shared by the control bar and the keyboard
   shortcuts (`use-canvas-shortcuts.ts`), and the AI
-  Architect chat's local state (`use-ai-chat.ts`, owned by
-  the AI sidebar; no AI calls or persistence yet), and the
+  Architect chat (`use-ai-chat.ts`, owned by the AI
+  sidebar: the room's shared `aiChat` messages through
+  `useStorage`, sending through `useMutation` inside
+  `room.history.disable`, so the canvas Undo never removes
+  a chat message; only the draft is local; no AI replies
+  yet), and the
   room's AI status as it should be shown now
   (`use-ai-status.ts`: re-renders when a finished status
   should disappear or an unfinished one goes stale).
@@ -166,6 +177,10 @@ paths below are relative to it.
   the key) and `getUserColor()` (the cursor color palette).
   `lib/ai-user.ts` holds `AI_USER` (the design agent's
   presence identity), used by the server and the client.
+  `lib/ai-chat.ts` holds the shared chat's message type,
+  limits, content normalizer, parser and the one append
+  function (`appendAiChatMessage`) both the sidebar and
+  the server helper use.
   `lib/canvas-types.ts` holds the canvas node/edge types
   (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`,
   `CanvasEdgeData`) and the edge type name
@@ -288,6 +303,18 @@ Hybrid storage. The database stays lean.
   locked), and show `done` / `failed` for 10 s after
   `updatedAt`. Clients can write storage, so readers parse
   it (`parseAiStatus`) and ignore a malformed value.
+  The optional `aiChat` (feature 26) is the AI Architect
+  chat everyone in the project shares:
+  `LiveList<LiveObject<AiChatMessage>>` with `id`, `role`
+  (`user` | `assistant`), `content` (trimmed, at most
+  4,000 characters), `authorId` (Clerk id, or `ghost-ai`),
+  `authorName`, `createdAt` (ISO) and an optional `runId`.
+  Rooms start without it (read as empty); the first
+  message creates it. Every append drops the oldest
+  messages past 200. People append from the sidebar; the
+  design agent appends through `lib/design-agent-chat.ts`.
+  Readers parse it (`parseAiChatMessages`), skip malformed
+  messages and show at most the newest 200.
 
 ## Auth and Access Model
 

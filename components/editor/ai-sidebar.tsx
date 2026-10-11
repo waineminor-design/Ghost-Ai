@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 export function AiSidebar() {
   const { isOpen, followsScreenSize } = useAiSidebarVisibility();
   // Owned here, not in the tab panel: inactive panels unmount, and the
-  // chat must survive switching tabs.
+  // draft must survive switching tabs (the messages live in the room).
   const chat = useAiChat();
 
   return (

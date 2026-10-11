@@ -1,6 +1,7 @@
-import type { LiveObject } from "@liveblocks/client";
+import type { LiveList, LiveObject } from "@liveblocks/client";
 import type { LiveblocksFlow } from "@liveblocks/react-flow";
 
+import type { AiChatMessage } from "@/lib/ai-chat";
 import type { AiStatus } from "@/lib/ai-status";
 import type { CanvasEdge, CanvasNode } from "@/lib/canvas-types";
 
@@ -17,13 +18,16 @@ declare global {
     };
 
     // The room's shared storage: the canvas nodes and edges, in the shape
-    // useLiveblocksFlow syncs (its default "flow" storage key), and the AI
-    // status everyone sees in the AI sidebar. Rooms that never had a design
-    // run have no `aiStatus` (read as idle); the design agent creates it on
-    // its first write.
+    // useLiveblocksFlow syncs (its default "flow" storage key), the AI
+    // status everyone sees in the AI sidebar, and the shared AI Architect
+    // chat. Rooms that never had a design run have no `aiStatus` (read as
+    // idle); the design agent creates it on its first write. Rooms without
+    // a chat message have no `aiChat` (read as empty); the first message
+    // creates it.
     Storage: {
       flow: LiveblocksFlow<CanvasNode, CanvasEdge>;
       aiStatus?: LiveObject<AiStatus>;
+      aiChat?: LiveList<LiveObject<AiChatMessage>>;
     };
 
     // Set by POST /api/liveblocks-auth when the session is prepared.

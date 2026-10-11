@@ -44,7 +44,8 @@ export function CanvasRoom({
 
 // Storage for a room that has none yet: an empty canvas. Existing rooms
 // keep their storage; this only runs the first time a room is joined.
-// `aiStatus` is left out: the design agent creates it on its first run.
+// `aiStatus` and `aiChat` are left out: the design agent creates
+// `aiStatus` on its first run, and the first chat message creates `aiChat`.
 function createInitialStorage(): Liveblocks["Storage"] {
   return {
     flow: new LiveObject({ nodes: new LiveMap(), edges: new LiveMap() }),
