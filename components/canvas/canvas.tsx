@@ -15,6 +15,7 @@ import {
 import "@xyflow/react/dist/base.css";
 
 import { CanvasControls } from "@/components/canvas/canvas-controls";
+import { CollaboratorCursors } from "@/components/canvas/collaborator-cursors";
 import { LabeledEdge } from "@/components/canvas/labeled-edge";
 import { ShapeNode } from "@/components/canvas/shape-node";
 import { ShapePanel } from "@/components/canvas/shape-panel";
@@ -157,6 +158,8 @@ function CanvasFlow() {
         <Background variant={BackgroundVariant.Dots} />
         <ShapePanel onAddShape={addShapeAtViewportCenter} />
         <CanvasControls />
+        {/* Last, so other users' cursors also show over the panels. */}
+        <CollaboratorCursors />
       </ReactFlow>
       {/* Outside <ReactFlow>: the dialog is portaled, but React events
           still bubble through the React tree. */}

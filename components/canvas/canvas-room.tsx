@@ -12,6 +12,7 @@ import {
 import { LoaderCircle, TriangleAlert } from "lucide-react";
 
 import { Canvas } from "@/components/canvas/canvas";
+import { PresenceAvatars } from "@/components/editor/presence-avatars";
 
 // Client entry point for a project's canvas. Joins the Liveblocks room
 // whose id is the project id; /api/liveblocks-auth only issues a token for
@@ -38,7 +39,8 @@ function createInitialStorage(): Liveblocks["Storage"] {
   };
 }
 
-// Shows "Connecting to room…" until storage has loaded, then the canvas.
+// Shows "Connecting to room…" until storage has loaded, then the canvas,
+// and the avatar stack in the navbar once the room is connected.
 // A rejected token or a refused connection never loads storage, so the
 // error listener swaps the pending state for an error message. If the
 // room reconnects afterwards, the error is cleared and the canvas returns.
@@ -65,9 +67,14 @@ function RoomContent() {
   }
 
   return (
-    <ClientSideSuspense fallback={<RoomConnecting />}>
-      <Canvas />
-    </ClientSideSuspense>
+    <>
+      <ClientSideSuspense fallback={<RoomConnecting />}>
+        <Canvas />
+      </ClientSideSuspense>
+      <ClientSideSuspense fallback={null}>
+        <PresenceAvatars />
+      </ClientSideSuspense>
+    </>
   );
 }
 

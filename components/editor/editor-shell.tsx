@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 
 import { AiSidebarContext } from "@/components/editor/ai-sidebar-context";
 import { EditorNavbar } from "@/components/editor/editor-navbar";
+import { PresenceSlotContext } from "@/components/editor/presence-slot-context";
 import { ProjectDialogs } from "@/components/editor/project-dialogs";
 import { ProjectDialogsContext } from "@/components/editor/project-dialogs-context";
 import { ProjectSidebar } from "@/components/editor/project-sidebar";
@@ -19,9 +20,10 @@ import type { EditorProjects } from "@/lib/projects";
 // AI sidebar themselves and read its state from AiSidebarContext; the
 // canvas controls read the project sidebar's state from
 // ProjectSidebarContext; the canvas renders the templates dialog the
-// navbar opens, through TemplatesDialogContext. `projectsPromise` comes
-// from the server layout; the navbar and sidebar resolve it behind their
-// own Suspense boundaries.
+// navbar opens, through TemplatesDialogContext; the canvas room portals
+// the avatar stack into the navbar slot from PresenceSlotContext.
+// `projectsPromise` comes from the server layout; the navbar and sidebar
+// resolve it behind their own Suspense boundaries.
 export function EditorShell({
   projectsPromise,
   children,
@@ -31,6 +33,7 @@ export function EditorShell({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
+  const [presenceSlot, setPresenceSlot] = useState<HTMLElement | null>(null);
   const aiSidebar = useAiSidebarState();
   const dialogs = useProjectDialogs();
 
@@ -41,27 +44,30 @@ export function EditorShell({
           <TemplatesDialogContext
             value={{ isOpen: isTemplatesOpen, setIsOpen: setIsTemplatesOpen }}
           >
-            <div className="flex h-screen flex-col">
-              <EditorNavbar
-                isSidebarOpen={isSidebarOpen}
-                onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
-                isAiSidebarOpen={aiSidebar.isOpen}
-                onToggleAiSidebar={aiSidebar.toggle}
-                onOpenTemplates={() => setIsTemplatesOpen(true)}
-                projectsPromise={projectsPromise}
-              />
-              <main className="relative flex-1 overflow-hidden">
-                <ProjectSidebar
-                  isOpen={isSidebarOpen}
-                  onClose={() => setIsSidebarOpen(false)}
+            <PresenceSlotContext value={{ slot: presenceSlot }}>
+              <div className="flex h-screen flex-col">
+                <EditorNavbar
+                  isSidebarOpen={isSidebarOpen}
+                  onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
+                  isAiSidebarOpen={aiSidebar.isOpen}
+                  onToggleAiSidebar={aiSidebar.toggle}
+                  onOpenTemplates={() => setIsTemplatesOpen(true)}
+                  presenceSlotRef={setPresenceSlot}
                   projectsPromise={projectsPromise}
-                  onNewProject={dialogs.openCreateDialog}
-                  onRenameProject={dialogs.openRenameDialog}
-                  onDeleteProject={dialogs.openDeleteDialog}
                 />
-                {children}
-              </main>
-            </div>
+                <main className="relative flex-1 overflow-hidden">
+                  <ProjectSidebar
+                    isOpen={isSidebarOpen}
+                    onClose={() => setIsSidebarOpen(false)}
+                    projectsPromise={projectsPromise}
+                    onNewProject={dialogs.openCreateDialog}
+                    onRenameProject={dialogs.openRenameDialog}
+                    onDeleteProject={dialogs.openDeleteDialog}
+                  />
+                  {children}
+                </main>
+              </div>
+            </PresenceSlotContext>
           </TemplatesDialogContext>
         </ProjectSidebarContext>
       </AiSidebarContext>

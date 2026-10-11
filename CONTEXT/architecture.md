@@ -38,7 +38,14 @@ paths below are relative to it.
   `components/canvas/canvas-room.tsx` is the client entry
   point that joins a project's Liveblocks room;
   `components/canvas/canvas.tsx` is the React Flow canvas
-  inside it.
+  inside it. `components/canvas/collaborator-cursors.tsx`
+  draws other users' cursors (Liveblocks' React Flow
+  `<Cursors>`, `cursor` presence in flow coordinates).
+  The navbar is outside the room, so the avatar stack
+  (`components/editor/presence-avatars.tsx`) renders inside
+  the room and is portaled into a navbar slot that
+  `EditorShell` shares through `PresenceSlotContext`
+  (`components/editor/presence-slot-context.ts`).
 - `hooks/` — client hooks for dialog state, form state and
   mutations, and the canvas actions (`use-canvas-actions.ts`:
   zoom, fit view, undo/redo through the Liveblocks room

@@ -5,13 +5,15 @@ change.
 
 ## Current Phase
 
-- Feature 18 (Starter Templates) complete; owner's browser
-  check passed for the dialog, import, fit view and sync
+- Feature 19 (Presence: Avatars and Cursors) built; `tsc`,
+  `eslint` and `npm run build` pass. Not yet checked in the
+  browser.
 
 ## Current Goal
 
-- Owner's check of the replace confirmation and undo
-  after an import, then feature 19
+- Owner's two-account browser check of feature 19 (cursors,
+  avatar stack, leaving), plus the feature 18 replace
+  confirmation and undo still pending, then feature 20
 
 ## Completed
 
@@ -1136,15 +1138,82 @@ change.
     on a non-empty canvas and undo restoring the previous
     canvas.
 
+- 19 Presence: Avatars and Cursors (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/19-PRESENCE-AVATARS-CURSORS.md`):
+  - `components/canvas/collaborator-cursors.tsx` —
+    `CollaboratorCursors`: Liveblocks' `<Cursors>` from
+    `@liveblocks/react-flow` (checked in its source): it
+    listens for `pointermove` on the React Flow element,
+    writes `screenToFlowPosition` of the pointer to the
+    `cursor` presence (throttled by the Liveblocks client,
+    default 100 ms, smoothed by a spring on the receiving
+    side), sets it to null on `pointerleave` and window
+    blur, and places each other connection's cursor at
+    flow × zoom + pan, re-placed on every pan/zoom. Lists
+    other connections only (`useOthersConnectionIds`), so
+    your own cursor is never drawn and a leaver's goes.
+    Its default cursor needs `resolveUsers`, so a custom
+    `CollaboratorCursor` reads name and color from
+    `useOther(connectionId, other => other.info)` (the
+    token's user info) and draws an SVG pointer arrow
+    (`fill` = user color, `stroke-foreground`) with the
+    name on a pill in that color (`text-background`).
+    Overlay `absolute inset-0 z-5 pointer-events-none`:
+    above the nodes (React Flow's renderer is z-4), never
+    blocks clicks; rendered last in `<ReactFlow>`. No
+    Liveblocks stylesheet imported; the classes are ours.
+  - `components/editor/presence-avatars.tsx` —
+    `PresenceAvatars`: you plus everyone else, one avatar
+    per user id (the same user in two tabs shows once),
+    you first. `useSelf` / `useOthersMapped` select only
+    id + info with `shallow`, so cursor moves don't
+    re-render it. shadcn `Avatar` with the Clerk image, or
+    initials (first + last word) on a circle in the user's
+    color; `ring-2` in that color with a `ring-offset-2`
+    background gap; overlapping `-ml-2`. Tooltip (bottom)
+    with the name, "(you)" for yourself; each avatar is
+    `role="img"` with that label. At most 4 avatars then a
+    `+N` circle from `lg`; 2 then `+N` between `md` and
+    `lg`; hidden below `md` (see Open Questions).
+  - Navbar placement: the navbar is outside the room (the
+    `RoomProvider` is in the workspace page, after the
+    access check), so `EditorShell` keeps a slot element in
+    state and passes it through
+    `components/editor/presence-slot-context.ts`
+    (`PresenceSlotContext`); the navbar's
+    `WorkspaceActions` renders the slot (`display:
+    contents`) before the AI sidebar toggle, and
+    `CanvasRoom` portals `PresenceAvatars` into it behind
+    its own `ClientSideSuspense` (`fallback={null}`). So the
+    stack shows only once the room is connected, never on
+    the editor home, not on a room connection error, and
+    goes away when you leave the workspace.
+  - Cursor colors stay the `USER_COLORS` hex values from the
+    auth token; components get them as a `--user-color` CSS
+    variable and use `fill-` / `bg-` / `ring-(--user-color)`.
+  - `CONTEXT/ui-context.md` and `CONTEXT/architecture.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass; built
+    CSS has the new classes (`ring-(--user-color)`,
+    `not-first:-ml-2`, `z-5`, …). Not yet checked with two
+    users in the browser.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 19 (cursors / presence)
+- Feature 20 (AI sidebar shell)
 
 ## Open Questions
+
+- Avatar stack on small screens (feature 19): the navbar's
+  right section is already full on a 375 px phone, so the
+  stack is hidden below `md` and shows at most 2 avatars
+  (then `+N`) between `md` and `lg`; the spec's 4 applies
+  from `lg`. Cursors show at every size. Say if phones
+  should get a compact version instead.
 
 - `pg` logs a security warning on connect: the
   `DATABASE_URL` uses `sslmode=require` (or `prefer` /

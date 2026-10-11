@@ -21,6 +21,8 @@ interface EditorNavbarProps {
   isAiSidebarOpen: boolean;
   onToggleAiSidebar: () => void;
   onOpenTemplates: () => void;
+  // Receives the element the canvas room portals the avatar stack into.
+  presenceSlotRef: (element: HTMLElement | null) => void;
   projectsPromise: Promise<EditorProjects>;
 }
 
@@ -30,6 +32,7 @@ export function EditorNavbar({
   isAiSidebarOpen,
   onToggleAiSidebar,
   onOpenTemplates,
+  presenceSlotRef,
   projectsPromise,
 }: EditorNavbarProps) {
   const ToggleIcon = isSidebarOpen ? PanelLeftClose : PanelLeftOpen;
@@ -64,6 +67,7 @@ export function EditorNavbar({
             projectsPromise={projectsPromise}
             isAiSidebarOpen={isAiSidebarOpen}
             onToggleAiSidebar={onToggleAiSidebar}
+            presenceSlotRef={presenceSlotRef}
           />
         </Suspense>
         <UserButton />
@@ -105,15 +109,18 @@ function TemplatesAction({
   );
 }
 
-// Actions for the open workspace; nothing outside a workspace.
+// Actions for the open workspace; nothing outside a workspace. The
+// presence slot is where the canvas room renders the avatar stack.
 function WorkspaceActions({
   projectsPromise,
   isAiSidebarOpen,
   onToggleAiSidebar,
+  presenceSlotRef,
 }: {
   projectsPromise: Promise<EditorProjects>;
   isAiSidebarOpen: boolean;
   onToggleAiSidebar: () => void;
+  presenceSlotRef: (element: HTMLElement | null) => void;
 }) {
   const { currentUserId } = use(projectsPromise);
   const project = useCurrentProject(projectsPromise);
@@ -123,6 +130,9 @@ function WorkspaceActions({
 
   return (
     <>
+      {/* `contents`: the stack takes part in this flex row directly, and
+          leaves no gap while it is hidden or not rendered. */}
+      <div ref={presenceSlotRef} className="contents" />
       <Button
         variant="ghost"
         size="icon"

@@ -74,7 +74,10 @@ Exception: collaborator cursor colors are hex values in
 other clients as Liveblocks user info, so they must be
 concrete values, not CSS variables. Each user gets one via
 `getUserColor(userId)`; never redefine the palette
-elsewhere.
+elsewhere. Components receive a user's color as the
+`--user-color` CSS variable (inline style) and use it
+through `fill-(--user-color)`, `bg-(--user-color)` and
+`ring-(--user-color)`.
 
 ## Typography
 
@@ -120,9 +123,9 @@ app-specific wrappers in feature folders instead (e.g.
   section holds `Templates` (`LayoutTemplate`, ghost, icon
   only below `sm`) after the project sidebar toggle, the
   center shows the project name and the right section holds
-  the AI sidebar toggle (`PanelRightOpen` /
-  `PanelRightClose`) and `Share` (icon only below `sm`)
-  before the `UserButton`. `Templates` sits on the left
+  the presence avatar stack, the AI sidebar toggle
+  (`PanelRightOpen` / `PanelRightClose`) and `Share` (icon
+  only below `sm`) before the `UserButton`. `Templates` sits on the left
   because the right section is full on a 375 px phone.
 - Canvas: React Flow (`colorMode="dark"`) fills the
   workspace, with a dot
@@ -197,6 +200,26 @@ app-specific wrappers in feature folders instead (e.g.
   link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center
   and right sections and a subtle bottom border.
+- Presence avatar stack: everyone in the room, you first,
+  one avatar per user, as overlapping (`-ml-2`) `size-8`
+  shadcn `Avatar`s — Clerk image, or initials on a circle
+  in the user's cursor color (`text-background`) — each
+  ringed in that color (`ring-2`, `ring-offset-2` in
+  `--background`, which also separates the overlap).
+  Tooltip below with the name, "(you)" on your own. At most
+  4 avatars then a muted `+N` circle from `lg`, 2 then `+N`
+  between `md` and `lg`, hidden below `md` (no room on
+  phones). Only in a connected room; never on the editor
+  home.
+- Collaborator cursors: every other user's pointer on the
+  canvas, at the same diagram point for everyone whatever
+  their pan/zoom. A 12×16 pointer arrow filled in the
+  user's cursor color with a `--foreground` outline, and
+  the name on a `rounded-full` pill in that color
+  (`text-xs`, `font-medium`, `text-background`,
+  `shadow-sm`) below-right of the tip. Above the nodes and
+  panels, `pointer-events: none`. Your own cursor is not
+  drawn.
 - Project sidebar: floats above the canvas and slides in
   from the left; it does not push page content. On mobile,
   tapping outside closes it (backdrop scrim).
