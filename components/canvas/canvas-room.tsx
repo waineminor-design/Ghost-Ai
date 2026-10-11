@@ -16,8 +16,16 @@ import { PresenceAvatars } from "@/components/editor/presence-avatars";
 
 // Client entry point for a project's canvas. Joins the Liveblocks room
 // whose id is the project id; /api/liveblocks-auth only issues a token for
-// it to the owner and collaborators.
-export function CanvasRoom({ projectId }: { projectId: string }) {
+// it to the owner and collaborators. `children` is UI next to the canvas
+// that also reads the room (the AI sidebar); it renders while the room
+// connects and if the connection fails, so it must not suspend.
+export function CanvasRoom({
+  projectId,
+  children,
+}: {
+  projectId: string;
+  children?: ReactNode;
+}) {
   return (
     <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
       <RoomProvider
@@ -25,7 +33,10 @@ export function CanvasRoom({ projectId }: { projectId: string }) {
         initialPresence={{ cursor: null, isThinking: false }}
         initialStorage={createInitialStorage}
       >
-        <RoomContent projectId={projectId} />
+        <section aria-label="Canvas" className="size-full bg-background">
+          <RoomContent projectId={projectId} />
+        </section>
+        {children}
       </RoomProvider>
     </LiveblocksProvider>
   );
@@ -33,6 +44,7 @@ export function CanvasRoom({ projectId }: { projectId: string }) {
 
 // Storage for a room that has none yet: an empty canvas. Existing rooms
 // keep their storage; this only runs the first time a room is joined.
+// `aiStatus` is left out: the design agent creates it on its first run.
 function createInitialStorage(): Liveblocks["Storage"] {
   return {
     flow: new LiveObject({ nodes: new LiveMap(), edges: new LiveMap() }),

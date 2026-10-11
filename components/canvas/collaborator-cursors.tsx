@@ -1,6 +1,9 @@
 import type { CSSProperties } from "react";
 import { Cursors, type CursorsCursorProps } from "@liveblocks/react-flow";
-import { useOther } from "@liveblocks/react/suspense";
+import { shallow, useOther } from "@liveblocks/react/suspense";
+import { LoaderCircle } from "lucide-react";
+
+import { AI_USER } from "@/lib/ai-user";
 
 // Defined once, outside the component, like React Flow's node types.
 const CURSOR_COMPONENTS = { Cursor: CollaboratorCursor };
@@ -25,9 +28,18 @@ export function CollaboratorCursors() {
 
 // A pointer arrow in the user's cursor color with their name on a pill in
 // the same color. The arrow's tip is the cursor position: <Cursors> moves
-// a wrapper to that point, and this sits at the wrapper's top-left.
+// a wrapper to that point, and this sits at the wrapper's top-left. While
+// Ghost AI is thinking, its pill shows a small spinner before the name.
 function CollaboratorCursor({ connectionId }: CursorsCursorProps) {
-  const { name, color } = useOther(connectionId, (other) => other.info);
+  const { name, color, isThinking } = useOther(
+    connectionId,
+    (other) => ({
+      name: other.info.name,
+      color: other.info.color,
+      isThinking: other.id === AI_USER.id && other.presence.isThinking,
+    }),
+    shallow,
+  );
 
   return (
     <div
@@ -49,7 +61,8 @@ function CollaboratorCursor({ connectionId }: CursorsCursorProps) {
           strokeLinejoin="round"
         />
       </svg>
-      <span className="absolute top-4 left-2.5 rounded-full bg-(--user-color) px-2 py-0.5 text-xs font-medium whitespace-nowrap text-background shadow-sm">
+      <span className="absolute top-4 left-2.5 flex items-center gap-1 rounded-full bg-(--user-color) px-2 py-0.5 text-xs font-medium whitespace-nowrap text-background shadow-sm">
+        {isThinking && <LoaderCircle className="size-3 animate-spin" aria-hidden />}
         {name}
       </span>
     </div>

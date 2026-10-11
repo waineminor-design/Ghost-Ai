@@ -5,27 +5,30 @@ change.
 
 ## Current Phase
 
-- Feature 24 (Design Agent Logic) built; `tsc`, `eslint`,
-  `npm run build` pass and the agent's logic passed offline
-  tests. A real run (Gemini + the live room) still needs the
-  owner's `npm run trigger:dev` and the Trigger.dev
-  dashboard.
+- Feature 25 (AI Presence State) built; `tsc`, `eslint`,
+  `npm run build` pass and the status rules and storage
+  writer passed offline tests. The live check (a dashboard
+  run seen by two browsers) still needs the owner.
 - **Owner: restart `npm run dev` and `npm run trigger:dev`**
-  (Ctrl+C, then start again) so both pick up the new
-  packages and code.
+  (Ctrl+C, then start again) so both pick up the new code.
 
 ## Current Goal
 
-- Owner runs feature 24's dashboard test: open a project in
-  the browser, copy its id from the address bar
-  (`/editor/<id>`), and in the Trigger.dev dashboard test
-  `design-agent` with
-  `{ "projectId": "<id>", "userId": "test", "prompt": "Design a real-time chat app with a websocket server, presence service, Redis pub/sub, a Postgres database and S3 for media" }`.
-  Expected: "Ghost AI" appears in the avatar stack while it
-  runs, the diagram appears on the canvas, the AI avatar
-  disappears after, and the run's output shows
-  `actionsApplied` and `summary`. Plus the still-pending
-  signed-in checks of features 18-23.
+- Owner runs feature 25's check: open the same project in
+  two browsers (e.g. a normal and a private window, signed
+  in as two people, or one person twice), copy its id from
+  the address bar (`/editor/<id>`), and in the Trigger.dev
+  dashboard test `design-agent` with
+  `{ "projectId": "<id>", "userId": "test", "startedByName": "Dashboard test", "prompt": "Design a URL shortener" }`.
+  Expected in both windows: the status line at the top of
+  the AI Architect tab shows a spinner with "Reading the
+  canvas", "Designing the changes", "Applying N changes"
+  and "started by Dashboard test"; the composer is disabled
+  with "Ghost AI is working…"; the Ghost AI cursor pill and
+  avatar show a spinner; then a check with "Added …" for
+  about 10 s, and the composer works again. A project that
+  never had a run shows no status line and no errors. Plus
+  the still-pending signed-in checks of features 18-23.
 
 ## Completed
 
@@ -1576,6 +1579,70 @@ change.
     and a labeled chat-app architecture (Web Client, API
     Gateway, WebSocket server, storage, labeled edges)
     appeared live on the canvas.
+- 25 AI Presence State (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/25-AI-PRESENCE-STATE.md`):
+  - `liveblocks.config.ts`: optional
+    `aiStatus?: LiveObject<AiStatus>` in Storage. The type
+    (`step` idle/started/thinking/applying/done/failed,
+    `message`, `runId`, `startedBy`, `updatedAt`), the
+    display rules (active; done/failed for 10 s; stale after
+    3 min) and a parser live in the new `lib/ai-status.ts`,
+    shared by server and client. Rooms are not seeded with
+    it (`createInitialStorage` unchanged).
+  - `trigger/design-agent.ts`: every status goes to run
+    metadata (as before) and to `aiStatus` through the new
+    `lib/design-agent-status.ts` (`mutateStorage`; creates
+    the key on the first write, replaces a non-LiveObject
+    value). Failed writes are logged, not thrown. `done`
+    gets the short change count in the room (the metadata
+    keeps the full summary); `failed` gets "The design agent
+    failed". New optional payload field `startedByName`;
+    `runId` is the run's id. `DesignAgentStep` is now
+    derived from `AiStatusStep` (one list of steps).
+  - Extra, not in the spec: when the agent falls back to the
+    next Gemini model it records `thinking` again ("Designing
+    the changes (trying another model)"). Why: three models
+    at up to 90 s each can exceed the 3-minute stale window,
+    which would hide the status and unlock the composer
+    while the run is still working.
+  - `POST /api/ai/design` passes the signed-in user's name
+    as `startedByName` (omitted when Clerk has none).
+  - UI: `components/editor/ai-status-line.tsx` (the status
+    line, `role="status"`, always mounted and collapsed
+    while empty so changes are announced) and
+    `hooks/use-ai-status.ts` (non-suspense `useStorage`; a
+    timer re-renders when the status should disappear). The
+    composer takes `isLocked` (textarea and send disabled,
+    placeholder "Ghost AI is working…").
+  - The AI sidebar now renders inside the room:
+    `CanvasRoom` takes `children` and owns the "Canvas"
+    `<section>`; `ProjectWorkspace` passes `<AiSidebar />`.
+    Side effect: the sidebar is now keyed with the room, so
+    the local (placeholder) chat resets when switching
+    projects instead of carrying over.
+  - Ghost AI spinners: the cursor pill shows a `LoaderCircle`
+    before the name, and the avatar's ring becomes a
+    spinning arc, while the Ghost AI user (id checked, not
+    just the flag) has `isThinking: true`. `AI_USER` moved
+    from `lib/liveblocks.ts` (`server-only`) to the new
+    `lib/ai-user.ts` so the client can check the id.
+  - `eslint.config.mjs`: `.trigger/**` ignored. `npm run
+    lint` was failing on the Trigger.dev dev worker's
+    generated bundles in `.trigger/tmp/` (git-ignored, 108
+    errors, none in source).
+  - `CONTEXT/architecture.md` and `CONTEXT/ui-context.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Scratch
+    tests (no network, no keys): 25 checks of the status
+    rules (missing/idle hidden; each active step shown until
+    3 min; done/failed until 10 s; malformed values ignored)
+    and 6 of the storage writer with a real `LiveObject`
+    root and a stubbed client (creates the key on the first
+    write, updates the same object after, replaces junk,
+    leaves `flow` alone).
+  - Not verified (needs the owner's browser and
+    `trigger:dev`): the live status line in two windows, the
+    spinners, the composer lock and unlock.
 
 ## In Progress
 
@@ -1583,9 +1650,20 @@ change.
 
 ## Next Up
 
-- AI design generation (25–26)
+- 26 Sidebar Chat Feed, 27 Design Agent Frontend
 
 ## Open Questions
+
+- Retried design runs (feature 25): a failed attempt writes
+  `failed` to the room before Trigger.dev retries it, so the
+  status line shows the warning and the composer unlocks
+  for the backoff (a few seconds), then the next attempt
+  shows `started` again. Same as the run metadata. Say if
+  only the final failure should reach the room.
+- Composer placeholder while locked (feature 25): a draft
+  typed before the run stays in the (disabled) box, so the
+  "Ghost AI is working…" placeholder only shows when the
+  box is empty. Say if the draft should be hidden instead.
 
 - Design agent on a project whose room was never opened
   (feature 24): Liveblocks creates a room when someone first

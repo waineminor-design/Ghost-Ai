@@ -32,13 +32,6 @@ const USER_COLORS = [
   "#f472b6", // pink
 ] as const;
 
-// The design agent's identity in a room's presence (avatar stack and
-// cursor). Clerk user ids start with "user_", so the id can't clash.
-export const AI_USER = {
-  id: "ghost-ai",
-  info: { name: "Ghost AI", color: "#e879f9" }, // fuchsia
-} as const;
-
 // The same user id always maps to the same color (FNV-1a hash of the id).
 export function getUserColor(userId: string): string {
   let hash = 0x811c9dc5;

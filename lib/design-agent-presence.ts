@@ -1,6 +1,7 @@
 import "server-only";
 
-import { AI_USER, getLiveblocks } from "@/lib/liveblocks";
+import { AI_USER } from "@/lib/ai-user";
+import { getLiveblocks } from "@/lib/liveblocks";
 
 // The design agent's presence in a project's room: it shows up in the
 // avatar stack as Ghost AI with `isThinking: true`, and with a cursor near

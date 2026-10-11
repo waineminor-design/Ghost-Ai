@@ -10,6 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { AI_USER } from "@/lib/ai-user";
 import { cn } from "@/lib/utils";
 
 // Avatars shown before the `+N` circle: 4 from `lg`, 2 between `md` and
@@ -21,6 +22,8 @@ const MAX_AVATARS_NARROW = 2;
 type RoomUser = {
   id: string;
   info: Liveblocks["UserMeta"]["info"];
+  // True while this is Ghost AI and it is working.
+  isThinking: boolean;
 };
 
 // Everyone in the room, you included, as overlapping avatars in the
@@ -35,11 +38,19 @@ export function PresenceAvatars() {
 }
 
 function AvatarStack() {
-  // Selectors keep only id and info, so presence changes (cursor moves)
-  // don't re-render the stack; it updates when people join or leave.
-  const self = useSelf((me): RoomUser => ({ id: me.id, info: me.info }), shallow);
+  // Selectors keep only id, info and Ghost AI's thinking state, so cursor
+  // moves don't re-render the stack; it updates when people join or leave
+  // and when Ghost AI starts or stops thinking.
+  const self = useSelf(
+    (me): RoomUser => ({ id: me.id, info: me.info, isThinking: false }),
+    shallow,
+  );
   const others = useOthersMapped(
-    (other): RoomUser => ({ id: other.id, info: other.info }),
+    (other): RoomUser => ({
+      id: other.id,
+      info: other.info,
+      isThinking: other.id === AI_USER.id && other.presence.isThinking,
+    }),
     shallow,
   );
 
@@ -83,6 +94,7 @@ function AvatarStack() {
 
 // Clerk image, or initials on a circle in the user's cursor color, ringed
 // in that color. The name (plus "(you)") shows in a tooltip on hover.
+// While Ghost AI is thinking, its ring becomes a spinning arc.
 function UserAvatar({
   user,
   isSelf,
@@ -105,7 +117,10 @@ function UserAvatar({
         // endpoint), so it comes in as a CSS variable.
         style={{ "--user-color": color } as CSSProperties}
         className={cn(
-          "ring-2 ring-(--user-color) ring-offset-2 ring-offset-background not-first:-ml-2",
+          "ring-offset-2 ring-offset-background not-first:-ml-2",
+          // The spinner replaces the ring, in the same place: 2px wide,
+          // 2px outside the avatar.
+          user.isThinking ? "ring-2 ring-transparent" : "ring-2 ring-(--user-color)",
           className,
         )}
       >
@@ -113,6 +128,12 @@ function UserAvatar({
         <AvatarFallback className="bg-(--user-color) text-xs font-medium text-background">
           {getInitials(name)}
         </AvatarFallback>
+        {user.isThinking && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -inset-1 animate-spin rounded-full border-2 border-(--user-color) border-t-transparent"
+          />
+        )}
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>

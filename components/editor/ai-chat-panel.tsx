@@ -5,9 +5,11 @@ import {
   AiChatComposer,
   type AiChatComposerHandle,
 } from "@/components/editor/ai-chat-composer";
+import { AiStatusLine } from "@/components/editor/ai-status-line";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AiChat, AiChatMessage } from "@/hooks/use-ai-chat";
+import { useAiStatus } from "@/hooks/use-ai-status";
 import { cn } from "@/lib/utils";
 
 const STARTER_PROMPTS = [
@@ -17,10 +19,14 @@ const STARTER_PROMPTS = [
   "Video streaming platform",
 ];
 
-// The AI Architect tab: messages (or the intro and starter prompts while
-// empty) above the composer. The chat state comes from AiSidebar.
+// The AI Architect tab: the room's AI status line, then messages (or the
+// intro and starter prompts while empty) above the composer. The chat
+// state comes from AiSidebar. While a design run is active the composer is
+// locked for everyone in the room. Must render inside a RoomProvider.
 export function AiChatPanel({ chat }: { chat: AiChat }) {
   const composerRef = useRef<AiChatComposerHandle>(null);
+  const aiStatus = useAiStatus();
+  const isAiWorking = aiStatus.kind === "active";
 
   function fillComposer(prompt: string) {
     chat.setDraft(prompt);
@@ -29,6 +35,7 @@ export function AiChatPanel({ chat }: { chat: AiChat }) {
 
   return (
     <>
+      <AiStatusLine status={aiStatus} />
       {chat.messages.length === 0 ? (
         <EmptyState onPickPrompt={fillComposer} />
       ) : (
@@ -40,6 +47,7 @@ export function AiChatPanel({ chat }: { chat: AiChat }) {
         onChange={chat.setDraft}
         canSend={chat.canSend}
         onSend={chat.send}
+        isLocked={isAiWorking}
       />
     </>
   );

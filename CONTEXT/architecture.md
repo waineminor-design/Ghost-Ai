@@ -29,13 +29,14 @@ paths below are relative to it.
   tokens, and trigger background tasks. Never run long AI
   work. `POST /api/ai/design` starts a `design-agent` run
   (records a `TaskRun` row, then triggers, then stores the
-  run id); `POST /api/ai/runs/[runId]/token` returns a
+  run id; passes the signed-in user's name as
+  `startedByName`); `POST /api/ai/runs/[runId]/token` returns a
   Trigger.dev public token that can read only that run.
 - `trigger/` — Trigger.dev task definitions (AI design
   generation, spec generation). The only place long-running
   AI work runs. One task per file, each a named export with
   a typed payload: `design-agent` (`trigger/design-agent.ts`,
-  `{ projectId, prompt, userId }`) and `spec-generator`
+  `{ projectId, prompt, userId, startedByName? }`) and `spec-generator`
   (`trigger/spec-generator.ts`, `{ projectId, userId }`).
   `spec-generator` is still a placeholder that logs and
   returns its input. App code triggers them by id with a
@@ -71,8 +72,8 @@ paths below are relative to it.
   the schema) are skipped, not fatal. Returns
   `{ actionsApplied, summary }`.
   - Presence: while it runs, the agent is in the room as
-    `AI_USER` (`lib/liveblocks.ts`: id `ghost-ai`, name
-    "Ghost AI") with `isThinking: true` and a cursor near
+    `AI_USER` (`lib/ai-user.ts`, shared with the client: id
+    `ghost-ai`, name "Ghost AI") with `isThinking: true` and a cursor near
     where it works (`lib/design-agent-presence.ts`). It is
     set through the REST API with a 60 s TTL, refreshed
     every 20 s, and cleared (TTL 2 s, the minimum) when the
@@ -86,6 +87,17 @@ paths below are relative to it.
     number of changes), `done` (message is the summary),
     `failed`. A retried attempt starts again at `started`;
     the run's own status says whether it finally succeeded.
+    A fallback to the next model records `thinking` again.
+  - Room AI status (feature 25): each status is also written
+    to the room's `aiStatus` storage key
+    (`lib/design-agent-status.ts`, `mutateStorage` from the
+    Liveblocks Node client; created on the first write) as
+    `{ step, message, runId, startedBy, updatedAt }`, so
+    everyone in the project sees it. `done` gets only the
+    short count of changes (`describeChanges`), not the
+    model's text. A failed write is logged, never thrown.
+    The type, the display rules and the parser are in
+    `lib/ai-status.ts` (shared by server and client).
 - `trigger.config.ts` (repo root) — Trigger.dev config:
   project ref from `TRIGGER_PROJECT_REF`, Node runtime,
   tasks in `./trigger`, max duration 3600 s, retries on by
@@ -102,7 +114,11 @@ paths below are relative to it.
 - `components/editor/`, `components/canvas/` and other
   feature folders — app-specific UI.
   `components/canvas/canvas-room.tsx` is the client entry
-  point that joins a project's Liveblocks room;
+  point that joins a project's Liveblocks room; the AI
+  sidebar is rendered as its child, inside the room but
+  outside the canvas's Suspense boundary, so it renders
+  while the room connects and reads storage with the
+  non-suspense hooks;
   `components/canvas/canvas.tsx` is the React Flow canvas
   inside it. `components/canvas/collaborator-cursors.tsx`
   draws other users' cursors (Liveblocks' React Flow
@@ -126,7 +142,10 @@ paths below are relative to it.
   history) shared by the control bar and the keyboard
   shortcuts (`use-canvas-shortcuts.ts`), and the AI
   Architect chat's local state (`use-ai-chat.ts`, owned by
-  the AI sidebar; no AI calls or persistence yet).
+  the AI sidebar; no AI calls or persistence yet), and the
+  room's AI status as it should be shown now
+  (`use-ai-status.ts`: re-renders when a finished status
+  should disappear or an unfinished one goes stale).
 - `lib/` — shared utilities: `cn()`, Prisma client
   singleton, Liveblocks and Blob helpers. Database queries
   live in `server-only` data modules (e.g.
@@ -144,8 +163,9 @@ paths below are relative to it.
   holds `getLiveblocks()` (the Liveblocks Node client,
   created on first use and cached — never at import, so
   Trigger.dev can import task files to index them without
-  the key), `getUserColor()` (the cursor color palette) and
-  `AI_USER` (the design agent's presence identity).
+  the key) and `getUserColor()` (the cursor color palette).
+  `lib/ai-user.ts` holds `AI_USER` (the design agent's
+  presence identity), used by the server and the client.
   `lib/canvas-types.ts` holds the canvas node/edge types
   (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`,
   `CanvasEdgeData`) and the edge type name
@@ -254,10 +274,20 @@ Hybrid storage. The database stays lean.
     generation read.
 - **Liveblocks room storage**: live canvas state (nodes,
   edges) and presence during a session. The room id stays
-  aligned with the project id. Storage holds one key,
-  `flow` (`LiveblocksFlow<CanvasNode, CanvasEdge>`), the
-  shape `useLiveblocksFlow` from `@liveblocks/react-flow`
-  syncs; a new room starts with an empty flow.
+  aligned with the project id. Storage holds `flow`
+  (`LiveblocksFlow<CanvasNode, CanvasEdge>`), the shape
+  `useLiveblocksFlow` from `@liveblocks/react-flow` syncs
+  (a new room starts with an empty flow), and the optional
+  `aiStatus` (`LiveObject<AiStatus>`: `step` = `idle` |
+  `started` | `thinking` | `applying` | `done` | `failed`,
+  `message`, `runId`, `startedBy`, `updatedAt` as ISO).
+  Only the design agent writes `aiStatus`; rooms that never
+  had a run don't have it, and readers treat it as idle.
+  Readers also treat an active step not updated for 3
+  minutes as idle (a crashed worker can't leave the room
+  locked), and show `done` / `failed` for 10 s after
+  `updatedAt`. Clients can write storage, so readers parse
+  it (`parseAiStatus`) and ignore a malformed value.
 
 ## Auth and Access Model
 

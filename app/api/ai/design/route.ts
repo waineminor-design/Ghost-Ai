@@ -53,7 +53,13 @@ export async function POST(request: Request) {
     });
     const handle = await tasks.trigger<typeof designAgent>(
       "design-agent",
-      { projectId, prompt, userId: identity.userId },
+      {
+        projectId,
+        prompt,
+        userId: identity.userId,
+        // Shown to everyone in the room as "started by <name>".
+        startedByName: identity.name ?? undefined,
+      },
       { idempotencyKey },
     );
     runId = handle.id;

@@ -3,6 +3,7 @@ import { mutateFlow } from "@liveblocks/react-flow/node";
 import { logger, metadata, task } from "@trigger.dev/sdk";
 import { generateText } from "ai";
 
+import type { AiStatusStep } from "@/lib/ai-status";
 import type { CanvasEdge, CanvasNode } from "@/lib/canvas-types";
 import {
   applyDesignActions,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/design-agent-canvas";
 import { createAiPresence } from "@/lib/design-agent-presence";
 import { DESIGN_AGENT_SYSTEM_PROMPT } from "@/lib/design-agent-prompt";
+import { writeAiStatus } from "@/lib/design-agent-status";
 import { designAgentTools } from "@/lib/design-agent-tools";
 import { getLiveblocks } from "@/lib/liveblocks";
 
@@ -35,13 +37,16 @@ type DesignGenerationInput = {
   prompt: string;
   // The run's abort signal (run cancelled or max duration reached).
   signal: AbortSignal;
+  // Called before each model after the first.
+  onFallback: () => Promise<void>;
 };
 
 // Asks each model in turn until one answers. Cancelling the run stops
 // immediately; otherwise the last model's error is thrown.
-async function generateDesign({ prompt, signal }: DesignGenerationInput) {
+async function generateDesign({ prompt, signal, onFallback }: DesignGenerationInput) {
   let lastError: unknown;
-  for (const model of DESIGN_AGENT_MODELS) {
+  for (const [index, model] of DESIGN_AGENT_MODELS.entries()) {
+    if (index > 0) await onFallback();
     try {
       return await generateText({
         model: google(model),
@@ -67,6 +72,9 @@ export interface DesignAgentPayload {
   projectId: string;
   prompt: string;
   userId: string;
+  // Shown in the room's AI status ("started by <name>"); absent when the
+  // run was started without one (e.g. from the Trigger.dev dashboard).
+  startedByName?: string;
 }
 
 export interface DesignAgentOutput {
@@ -76,8 +84,10 @@ export interface DesignAgentOutput {
 
 // Status messages the UI can subscribe to (run metadata, read with
 // Trigger.dev realtime): `status` is the latest one, `statusLog` all of
-// them in order. A retried attempt starts again at "started".
-export type DesignAgentStep = "started" | "thinking" | "applying" | "done" | "failed";
+// them in order. A retried attempt starts again at "started". Each one is
+// also written to the room's `aiStatus` storage, which everyone in the
+// project sees in the AI sidebar.
+export type DesignAgentStep = Exclude<AiStatusStep, "idle">;
 
 export type DesignAgentStatus = {
   step: DesignAgentStep;
@@ -86,9 +96,38 @@ export type DesignAgentStatus = {
   at: string;
 };
 
-function recordStatus(step: DesignAgentStep, message: string) {
+type StatusTarget = {
+  roomId: string;
+  runId: string;
+  startedBy: string | null;
+};
+
+// Records a status in the run metadata and the room's `aiStatus`.
+// `roomMessage` replaces the message in the room, where it must be short.
+// A failed room write is logged, never thrown: the run must not fail (or,
+// after applying, be retried and apply twice) over the status line.
+async function recordStatus(
+  target: StatusTarget,
+  step: DesignAgentStep,
+  message: string,
+  roomMessage = message,
+) {
   const status: DesignAgentStatus = { step, message, at: new Date().toISOString() };
   metadata.set("status", status).append("statusLog", status);
+  try {
+    await writeAiStatus(target.roomId, {
+      step,
+      message: roomMessage,
+      runId: target.runId,
+      startedBy: target.startedBy,
+      updatedAt: status.at,
+    });
+  } catch (error) {
+    logger.warn("design-agent could not write the room's AI status", {
+      step,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 // Reads the project's canvas, asks Gemini what to change for the prompt
@@ -102,16 +141,25 @@ export const designAgent = task({
     // The room id is the project id.
     const roomId = payload.projectId;
     const presence = createAiPresence(roomId);
+    const target: StatusTarget = {
+      roomId,
+      runId: ctx.run.id,
+      startedBy: payload.startedByName ?? null,
+    };
 
     try {
-      recordStatus("started", "Reading the canvas");
+      await recordStatus(target, "started", "Reading the canvas");
       const canvas = await readRoomCanvas(roomId);
       await presence.show(getCanvasCenter(canvas.nodes));
 
-      recordStatus("thinking", "Designing the changes");
+      await recordStatus(target, "thinking", "Designing the changes");
       const result = await generateDesign({
         prompt: `Current canvas:\n${describeCanvas(canvas)}\n\nRequest:\n${payload.prompt}`,
         signal,
+        // Also refreshes the status's time, so a long wait across models
+        // isn't taken for a crashed run (stale after 3 minutes).
+        onFallback: () =>
+          recordStatus(target, "thinking", "Designing the changes (trying another model)"),
       });
 
       // Calls that don't match a tool's schema come back as dynamic,
@@ -126,7 +174,8 @@ export const designAgent = task({
       const firstAdd = calls.find((call) => call.toolName === "addNode");
       if (firstAdd) await presence.show({ x: firstAdd.input.x, y: firstAdd.input.y });
 
-      recordStatus(
+      await recordStatus(
+        target,
         "applying",
         `Applying ${calls.length} change${calls.length === 1 ? "" : "s"}`,
       );
@@ -143,10 +192,10 @@ export const designAgent = task({
       const skipped = [...invalidCalls, ...applied.skipped];
       if (skipped.length > 0) logger.warn("design-agent skipped invalid actions", { skipped });
 
-      const summary = [result.text.trim(), describeChanges({ ...applied, skipped })]
-        .filter(Boolean)
-        .join("\n\n");
-      recordStatus("done", summary);
+      const changes = describeChanges({ ...applied, skipped });
+      const summary = [result.text.trim(), changes].filter(Boolean).join("\n\n");
+      // The room's status line gets only the short count of changes.
+      await recordStatus(target, "done", summary, changes);
       logger.log("design-agent applied actions", {
         applied: applied.applied,
         appliedByTool: applied.appliedByTool,
@@ -158,7 +207,7 @@ export const designAgent = task({
         attempt: ctx.attempt.number,
         error: error instanceof Error ? error.message : String(error),
       });
-      recordStatus("failed", "The design agent failed");
+      await recordStatus(target, "failed", "The design agent failed");
       throw error;
     } finally {
       // Nothing after a successful apply may throw, or a retry would apply
