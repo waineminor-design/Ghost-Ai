@@ -1565,6 +1565,17 @@ change.
     `deepmerge-ts`, `mysql2` and `ws`; none were added by
     this install (they were already in the tree via other
     packages).
+  - First dashboard run (2026-10-11) hung 6+ minutes: a
+    temporary Gemini "high demand" spike with no timeout on
+    the model call. Fixed: 90 s timeout per call, one retry,
+    fallback gemini-3.8-flash → 3.7-flash → 3.6-flash
+    (gemini-2.5-flash is closed to new API users).
+  - Owner-verified after the fix (2026-10-11): a dashboard
+    test run on project `ai-test-umv2xz` completed in ~68 s;
+    the Ghost AI avatar and cursor appeared during the run,
+    and a labeled chat-app architecture (Web Client, API
+    Gateway, WebSocket server, storage, labeled edges)
+    appeared live on the canvas.
 
 ## In Progress
 
