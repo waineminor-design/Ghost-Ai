@@ -105,7 +105,7 @@ type StatusTarget = {
 
 // Records a status in the run metadata and the room's `aiStatus`.
 // `roomMessage` replaces the message in the room, where it must be short.
-// A failed room write is logged, never thrown: the run must not fail (or,
+// Failed writes are logged, never thrown: the run must not fail (or,
 // after applying, be retried and apply twice) over the status line.
 async function recordStatus(
   target: StatusTarget,
@@ -114,7 +114,14 @@ async function recordStatus(
   roomMessage = message,
 ) {
   const status: DesignAgentStatus = { step, message, at: new Date().toISOString() };
-  metadata.set("status", status).append("statusLog", status);
+  try {
+    metadata.set("status", status).append("statusLog", status);
+  } catch (error) {
+    logger.warn("design-agent could not record its run metadata", {
+      step,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
   try {
     await writeAiStatus(target.roomId, {
       step,
@@ -166,6 +173,10 @@ export const designAgent = task({
       runId: ctx.run.id,
       startedBy: payload.startedByName ?? null,
     };
+    // Set once the canvas mutation has resolved (or there was nothing to
+    // apply). From then on the run must never throw: a retry would apply
+    // the same design a second time.
+    let committed: DesignAgentOutput | null = null;
 
     try {
       await recordStatus(target, "started", "Reading the canvas");
@@ -208,6 +219,10 @@ export const designAgent = task({
           applied = applyDesignActions(flow, calls);
         });
       }
+      committed = {
+        actionsApplied: applied.applied,
+        summary: describeChanges({ ...applied, skipped: [] }),
+      };
 
       const skipped = [...invalidCalls, ...applied.skipped];
       if (skipped.length > 0) logger.warn("design-agent skipped invalid actions", { skipped });
@@ -223,6 +238,14 @@ export const designAgent = task({
       });
       return { actionsApplied: applied.applied, summary };
     } catch (error) {
+      if (committed) {
+        // The changes are already on the canvas: report success instead of
+        // throwing, so Trigger.dev doesn't retry and apply them again.
+        logger.error("design-agent failed after applying its changes; not retrying", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return committed;
+      }
       // Details stay in the run log; the status is shown to people.
       logger.error("design-agent failed", {
         attempt: ctx.attempt.number,

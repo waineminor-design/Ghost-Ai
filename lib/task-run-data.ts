@@ -37,6 +37,19 @@ export async function setTaskRunRunId(
   await prisma.taskRun.update({ where: { id }, data: { runId } });
 }
 
+// How many runs of `kind` were started for the project in the last
+// `withinMs` milliseconds. Used to block a second design run while the
+// first one is queued and hasn't written its room status yet.
+export async function countRecentTaskRuns(
+  projectId: string,
+  kind: TaskRunKind,
+  withinMs: number,
+): Promise<number> {
+  return prisma.taskRun.count({
+    where: { projectId, kind, createdAt: { gte: new Date(Date.now() - withinMs) } },
+  });
+}
+
 // Removes the row of a run that could not be triggered.
 export async function deleteTaskRun(id: string): Promise<void> {
   await prisma.taskRun.deleteMany({ where: { id } });
