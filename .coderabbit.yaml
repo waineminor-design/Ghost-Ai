@@ -1,0 +1,6 @@
+# CodeRabbit review settings for Ghost AI.
+reviews:
+  path_filters:
+    # Third-party agent skills (vendor docs, overwritten on update).
+    - "!.claude/skills/**"
+    - "!skills-lock.json"

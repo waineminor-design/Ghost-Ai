@@ -19,6 +19,7 @@ import {
   SHAPE_DRAG_MIME,
   SHAPE_NODE_TYPE,
   parseShapeDragPayload,
+  type ShapeDragPayload,
 } from "@/lib/canvas-shapes";
 import type { CanvasEdge, CanvasNode } from "@/lib/canvas-types";
 
@@ -42,31 +43,22 @@ function CanvasFlow() {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, onDelete } =
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const { screenToFlowPosition } = useReactFlow<CanvasNode, CanvasEdge>();
-  // Makes node ids unique even for two drops in the same millisecond.
-  const dropCounter = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Orders this client's own nodes; the random part keeps ids unique
+  // across clients that add the same shape in the same millisecond.
+  const addCounter = useRef(0);
 
-  // Without preventDefault here the browser never fires `drop`.
-  function handleDragOver(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-  }
-
-  // A shape dropped from the panel becomes a node centered on the drop
-  // point. It is added through the Liveblocks flow, so it appears for
-  // everyone in the room.
-  function handleDrop(event: DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-
-    const payload = parseShapeDragPayload(
-      event.dataTransfer.getData(SHAPE_DRAG_MIME),
-    );
-    if (!payload) return;
-
-    const center = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-    dropCounter.current += 1;
+  // Adds a shape node centered on `screenPoint`. It goes through the
+  // Liveblocks flow, so it appears for everyone in the room.
+  function addShapeAt(
+    payload: ShapeDragPayload,
+    screenPoint: { x: number; y: number },
+  ) {
+    const center = screenToFlowPosition(screenPoint);
+    addCounter.current += 1;
 
     const node: CanvasNode = {
-      id: `${payload.shape}-${Date.now()}-${dropCounter.current}`,
+      id: `${payload.shape}-${Date.now()}-${addCounter.current}-${crypto.randomUUID().slice(0, 8)}`,
       type: SHAPE_NODE_TYPE,
       position: {
         x: center.x - payload.width / 2,
@@ -80,23 +72,55 @@ function CanvasFlow() {
     onNodesChange([{ type: "add", item: node }]);
   }
 
+  // Click, tap or keyboard on a panel button: add the shape in the middle
+  // of the visible canvas (the non-drag way to create shapes).
+  function addShapeAtViewportCenter(payload: ShapeDragPayload) {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    addShapeAt(payload, {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    });
+  }
+
+  // Without preventDefault here the browser never fires `drop`.
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  // A shape dropped from the panel becomes a node centered on the drop
+  // point.
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    const payload = parseShapeDragPayload(
+      event.dataTransfer.getData(SHAPE_DRAG_MIME),
+    );
+    if (!payload) return;
+
+    addShapeAt(payload, { x: event.clientX, y: event.clientY });
+  }
+
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={NODE_TYPES}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onConnect={onConnect}
-      onDelete={onDelete}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      connectionMode={ConnectionMode.Loose}
-      colorMode="dark"
-    >
-      <Background variant={BackgroundVariant.Dots} />
-      <ShapePanel />
-      <MiniMap className="hidden overflow-hidden rounded-lg border border-border sm:block" />
-    </ReactFlow>
+    <div ref={containerRef} className="size-full">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={NODE_TYPES}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onDelete={onDelete}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        connectionMode={ConnectionMode.Loose}
+        colorMode="dark"
+      >
+        <Background variant={BackgroundVariant.Dots} />
+        <ShapePanel onAddShape={addShapeAtViewportCenter} />
+        <MiniMap className="hidden overflow-hidden rounded-lg border border-border sm:block" />
+      </ReactFlow>
+    </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   LiveblocksProvider,
   RoomProvider,
   useErrorListener,
+  useStatus,
 } from "@liveblocks/react/suspense";
 import { LoaderCircle, TriangleAlert } from "lucide-react";
 
@@ -39,15 +40,25 @@ function createInitialStorage(): Liveblocks["Storage"] {
 
 // Shows "Connecting to room…" until storage has loaded, then the canvas.
 // A rejected token or a refused connection never loads storage, so the
-// error listener swaps the pending state for an error message.
+// error listener swaps the pending state for an error message. If the
+// room reconnects afterwards, the error is cleared and the canvas returns.
 function RoomContent() {
   const [connectionError, setConnectionError] = useState<number | null>(null);
+  const status = useStatus();
 
   useErrorListener((error) => {
     if (error.context.type === "ROOM_CONNECTION_ERROR") {
       setConnectionError(error.context.code);
     }
   });
+
+  // Clear the error when the room (re)connects. Done during render on a
+  // status change, as React recommends for state derived from props.
+  const [prevStatus, setPrevStatus] = useState(status);
+  if (status !== prevStatus) {
+    setPrevStatus(status);
+    if (status === "connected") setConnectionError(null);
+  }
 
   if (connectionError !== null) {
     return <RoomError code={connectionError} />;
