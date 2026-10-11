@@ -33,7 +33,7 @@ async function GuardedWorkspace({
   const access = await getProjectAccess(projectId, identity);
   if (!access) return <AccessDenied />;
 
-  return <ProjectWorkspace />;
+  return <ProjectWorkspace projectId={access.project.id} />;
 }
 
 function WorkspaceLoading() {

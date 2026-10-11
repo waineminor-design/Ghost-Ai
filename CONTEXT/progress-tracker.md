@@ -5,12 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 09 (Share Dialog) complete; browser check with two
-  Clerk accounts pending
+- Feature 12 (Shape Panel) complete; awaiting the owner's
+  two-account browser check (features 11 and 12)
 
 ## Current Goal
 
-- Owner browser-checks feature 09, then the next spec
+- Next feature spec (none written after 12 yet)
 
 ## Completed
 
@@ -493,14 +493,211 @@ change.
     is not a function") while `tsc` and `next build` passed.
     Fix: stop the dev server, delete `.next/`, restart.
 
+- 10 Liveblocks Setup (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/10-LIVEBLOCKS-SETUP.md`):
+  - Installed `@liveblocks/client`, `react`, `react-ui`,
+    `react-flow`, `node` (all 3.24.3) and `@xyflow/react`
+    12.12.0. The repo-local `liveblocks-best-practices`
+    agent skill (`.claude/skills/`) was used for the auth
+    and typing patterns.
+  - `liveblocks.config.ts` — global `Liveblocks` types:
+    Presence `cursor` (`{ x, y } | null`) + `isThinking`;
+    UserMeta `id` (Clerk user id) + `info` (`name`,
+    `avatar`, `color`); Storage `Record<string, never>`
+    placeholder for feature 11.
+  - Deviation: the spec says avatar "URL or null", but
+    Liveblocks reserves `info.avatar` as `string |
+    undefined` (a `null` type fails its UserMeta check), so
+    `avatar` is optional and omitted when the user has none.
+    Clerk always returns an `imageUrl`, so in practice it is
+    always set.
+  - `lib/liveblocks.ts` (`server-only`) — `liveblocks`, one
+    Node client from `LIVEBLOCKS_SECRET_KEY` (cached on
+    `globalThis` outside production, like `lib/prisma.ts`;
+    throws a clear error if the key is missing), and
+    `getUserColor(userId)`: FNV-1a hash of the id into an
+    8-color `USER_COLORS` palette defined only there.
+  - `lib/project-access.ts` — `Identity` gained `name`
+    (`fullName ?? username`) and `imageUrl` from the Clerk
+    user `getCurrentIdentity()` already loads, so the auth
+    route doesn't make a second Clerk API call.
+  - `app/api/liveblocks-auth/route.ts` — `POST`: 401 signed
+    out → 400 unless the body is a JSON object with a
+    non-empty `room` string of ≤ 128 chars and no `*` (a `*`
+    would make it a prefix pattern) → 403 when
+    `getProjectAccess` returns null → `prepareSession(userId,
+    { userInfo: { name ?? "Anonymous", avatar, color } })`,
+    `allow(project.id, ["*:write"])` (the deprecated
+    `FULL_ACCESS` constant equals this), and Liveblocks'
+    `{ body, status }` returned unchanged (a failed call is
+    logged server-side).
+  - Verified: `tsc`, `eslint`, `npm run build` pass
+    (`/api/liveblocks-auth` is `ƒ`). A throwaway file
+    confirmed `useMyPresence` / `useOthers` / `useStorage`
+    pick up the config types. A script ran the real route
+    handler against the database with Clerk stubbed and
+    Liveblocks' HTTP call intercepted (30 checks, all pass):
+    401 signed out; 400 for invalid JSON, empty / array body,
+    missing / numeric / empty room, `*`, `lbtest-*`, 129
+    chars; 403 for a stranger, an unknown project, the owner
+    of another project, and a collaborator whose email is
+    unverified, with no Liveblocks call for any rejected
+    request; owner and collaborator (email in another case)
+    → 200 with the token body unchanged, `userId` = Clerk id,
+    permissions exactly `{ [projectId]: ["*:write"] }`, user
+    info name / avatar / color (username and "Anonymous"
+    fallbacks, avatar omitted when null); a Liveblocks 403 is
+    passed through unchanged; `getUserColor` is deterministic
+    and spreads over all 8 colors. Test rows deleted. Against
+    `next start`, a signed-out POST returns 401 JSON.
+  - Not verified: a real token from Liveblocks (the script
+    intercepted the call so no test users were registered
+    on the Liveblocks account). First real check is when
+    feature 11 connects to a room in the browser.
+  - No UI files changed; no `.env*` file read or edited.
+  - `npm audit` reports 13 high findings, all in existing
+    toolchain deps (`eslint-config-next`, `prisma`,
+    `shadcn`); none come from the new packages.
+
+- 11 Base Canvas (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/11-BASE-CANVAS.md`):
+  - `lib/canvas-types.ts` — `CanvasNodeData` (`label`,
+    `shape`, `color`, all strings), `CanvasNode` =
+    `Node<CanvasNodeData>`, `CanvasEdge` = `Edge`.
+  - `liveblocks.config.ts` — Storage is
+    `{ flow: LiveblocksFlow<CanvasNode, CanvasEdge> }`
+    (`flow` is `useLiveblocksFlow`'s default storage key).
+  - `components/canvas/canvas-room.tsx` (`'use client'`
+    entry) — `LiveblocksProvider` (`authEndpoint`
+    `/api/liveblocks-auth`) + `RoomProvider` (id = project
+    id, presence `cursor: null`, `isThinking: false`,
+    `initialStorage` = an empty flow). `ClientSideSuspense`
+    shows a centered spinner + "Connecting to room…" until
+    storage loads. `useErrorListener` catches
+    `ROOM_CONNECTION_ERROR` and swaps in a centered error
+    (code -1 / 4001 → "access could not be verified", other
+    codes → "connection failed"). A 401/403 from the auth
+    endpoint makes Liveblocks stop retrying and fire code
+    -1, so a rejected token never leaves a blank canvas.
+  - `components/canvas/canvas.tsx` — `useLiveblocksFlow`
+    (`suspense: true`) feeds `ReactFlow` nodes, edges and
+    the change / connect / delete handlers, so nothing is
+    held in local state. `colorMode="dark"`, dot
+    `Background`, `MiniMap` (`rounded-lg border
+    border-border`). Pan and zoom are React Flow defaults.
+    Imports `@xyflow/react/dist/base.css` (only here).
+  - `app/globals.css` — `.react-flow` block maps React
+    Flow's `--xy-*` variables to tokens: background
+    `--background`, dots `--input`, minimap `--card`, mask
+    `--background` at 60% (`color-mix`), mask stroke
+    `--border`, minimap nodes `--accent`, attribution
+    background transparent.
+  - `components/editor/project-workspace.tsx` — the canvas
+    section renders `<CanvasRoom key={projectId} …>` (keyed
+    so switching projects resets the room's error state);
+    the AI chat placeholder stays. `app/editor/[projectId]/
+    page.tsx` passes `access.project.id` after the existing
+    guard, so Access Denied is unchanged.
+  - No shape panel, custom nodes, custom edges, toolbar
+    controls or cursors added. `@liveblocks/react-flow`'s
+    stylesheet is not imported (it only styles `Cursors`).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. The
+    built CSS has React Flow's base styles in the canvas
+    chunk and the `--xy-*` mapping in the global sheet.
+    Checked each overridden `--xy-*` name against
+    `base.css` (the dot color is `--xy-background-pattern-color`,
+    not `...-dots-color`). Against `next start`, signed-out
+    `/editor/x` → 307 to sign-in and a signed-out POST to
+    `/api/liveblocks-auth` → 401.
+  - Not verified (needs a browser and two Clerk accounts):
+    "Connecting to room…" then the canvas, owner and
+    collaborator in the same room at once, the error state
+    on a refused token, and the first real Liveblocks token
+    and storage load. A stranger's Access Denied and token
+    refusal are unchanged from features 08 and 10.
+
+- 12 Shape Panel (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/12-SHAPE-PANEL.md`):
+  - `lib/canvas-shapes.ts` — `CANVAS_SHAPES` (name, label,
+    description, default width/height) for rectangle
+    160×80, diamond 120×120, circle 100×100, pill 160×64,
+    cylinder 120×100, hexagon 160×90; `CanvasShape`,
+    `isCanvasShape()`, `getCanvasShape()`,
+    `SHAPE_NODE_TYPE` (`"shape"`), `SHAPE_DRAG_MIME`
+    (`application/ghost-shape`) and
+    `parseShapeDragPayload()` (null unless the JSON has a
+    known shape and positive finite width/height).
+  - `lib/canvas-colors.ts` — `NODE_COLORS` (one `default`
+    key → `fill-card` / `stroke-input` /
+    `text-card-foreground`), `DEFAULT_NODE_COLOR`,
+    `getNodeColorClasses()` (unknown keys → default).
+  - `components/canvas/shape-panel.tsx` — React Flow
+    `Panel` at `bottom-center`, pill-shaped (`rounded-full
+    bg-card border-border`), `role="group"` /
+    `aria-label="Shapes"`. One draggable button per shape
+    with a Lucide icon (`RectangleHorizontal`, `Diamond`,
+    `Circle`, `Pill`, `Cylinder`, `Hexagon`) and
+    `aria-label` + `title` "Rectangle: component or
+    service" etc. Drag start writes `{ shape, width,
+    height }` JSON under the custom MIME type,
+    `effectAllowed = "move"`.
+  - `components/canvas/shape-node.tsx` — `ShapeNode`: SVG
+    outline sized to the node (rect r=8, diamond polygon,
+    ellipse, stadium rect, cylinder body + lid edge,
+    hexagon), label centered (nothing rendered when empty),
+    selected → 2px `stroke-primary`. Four `source` handles
+    (top/right/bottom/left), visible on hover or when
+    selected. Unknown shapes render as rectangles.
+  - `components/canvas/canvas.tsx` — `Canvas` now wraps
+    `CanvasFlow` in `ReactFlowProvider`. `onDragOver`
+    → `preventDefault()` + `dropEffect = "move"`; `onDrop`
+    → `preventDefault()`, parse the payload (non-shapes
+    ignored), `screenToFlowPosition`, node centered on the
+    drop point with id `<shape>-<Date.now()>-<counter>`,
+    type `shape`, data `{ label: "", shape, color:
+    "default" }`, default width/height, added via
+    `onNodesChange([{ type: "add", item }])` from
+    `useLiveblocksFlow` (writes into room storage; checked
+    in `@liveblocks/react-flow`'s `applyNodeChanges`).
+    `nodeTypes` defined once at module level.
+  - `app/globals.css` — `--xy-handle-background-color`
+    mapped to `--muted-foreground`.
+  - Two small additions beyond the spec text, both noted in
+    Architecture Decisions: `connectionMode` is `Loose`
+    (needed for the side handles to connect), and the
+    minimap is hidden below `sm` (it overlapped the centered
+    panel on phone widths).
+  - Verified: `tsc`, `eslint`, `npm run build` pass. A tsx
+    script checked `parseShapeDragPayload` (valid
+    rectangle/hexagon accepted; unknown shape, `toString`,
+    negative or string sizes, invalid JSON, empty, `null`,
+    arrays rejected) and that `getCanvasShape` /
+    `getNodeColorClasses` ignore prototype keys. Built CSS
+    contains `fill-card`, `stroke-input`, `stroke-primary`,
+    `fill-none`, `text-card-foreground`, `sm:block` and the
+    handle variable.
+  - Not verified (needs a browser and two Clerk accounts):
+    the panel rendering, drag-and-drop placing the node at
+    the drop point, the shapes' look, real-time sync to a
+    collaborator, and selecting/dragging nodes syncing.
+    HTML5 drag-and-drop does not work on touch screens, and
+    Firefox has historically not started drags from
+    `<button draggable>`; check Firefox in the browser test.
+  - Browser-verified by the owner (2026-10-10, Edge + VS Code
+    browser, two Clerk accounts): canvas connects via
+    `/api/liveblocks-auth` (200); shape panel renders; a
+    diamond dropped by the owner appeared for the
+    collaborator in real time. Each user keeps their own
+    viewport, so the same node sits at different screen
+    positions. Firefox and edge connections not checked.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Browser check of feature 09 (two Clerk accounts), then
-  feature 10 (no spec yet)
+- Feature 13 (spec not yet in `CONTEXT/FEATURE-SPECS/`)
 
 ## Open Questions
 
@@ -550,6 +747,37 @@ change.
   `globals.css` together if one is chosen.
 
 ## Architecture Decisions
+
+- Shape nodes have four `source` handles and the canvas
+  uses `ConnectionMode.Loose`. Why: in React Flow's default
+  strict mode a source handle only connects to a target
+  handle, so each side would need two overlapping handles;
+  loose mode lets any side connect to any side, which is how
+  diagram editors behave. Edge creation still goes through
+  `useLiveblocksFlow`'s `onConnect`.
+- Shape list, drag payload and color keys live in `lib/`
+  (`canvas-shapes.ts`, `canvas-colors.ts`), not in the
+  canvas components, so templates and AI generation can use
+  the same shape names, sizes and color keys later. Lucide
+  icons stay in the panel (UI only).
+
+- Liveblocks Storage declares `flow` as required and
+  `RoomProvider` passes `initialStorage` (an empty
+  `LiveObject` with empty `nodes` / `edges` `LiveMap`s),
+  instead of an optional `flow` that `useLiveblocksFlow`
+  would create on first load. Why: Liveblocks' types make
+  `initialStorage` mandatory once Storage has a required
+  key, and a required `flow` means later storage readers
+  (AI generation, snapshots) never handle a missing canvas.
+  `useLiveblocksFlow`'s `nodes.initial` option is therefore
+  never used; seed content through storage mutations.
+- React Flow styling: `@xyflow/react/dist/base.css` (the
+  spec's "base styles"), not `style.css`, imported once in
+  `components/canvas/canvas.tsx`. Theme colors are set by
+  overriding `--xy-*` variables in `app/globals.css`, which
+  keeps color values out of components and works
+  regardless of stylesheet order (the library reads
+  `var(--xy-x, var(--xy-x-default))`).
 
 - Prisma 7 with a driver adapter (`@prisma/adapter-pg`), no
   Accelerate. Import the client and model types from

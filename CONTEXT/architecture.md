@@ -35,6 +35,10 @@ paths below are relative to it.
   edited by hand.
 - `components/editor/`, `components/canvas/` and other
   feature folders — app-specific UI.
+  `components/canvas/canvas-room.tsx` is the client entry
+  point that joins a project's Liveblocks room;
+  `components/canvas/canvas.tsx` is the React Flow canvas
+  inside it.
 - `hooks/` — client hooks for dialog state, form state and
   mutations.
 - `lib/` — shared utilities: `cn()`, Prisma client
@@ -49,7 +53,22 @@ paths below are relative to it.
   holds the email rules (trim + lowercase, validation) and
   share response types used by both server and client.
   `lib/api-client.ts` is the client helper for calling the
-  JSON route handlers.
+  JSON route handlers. `lib/liveblocks.ts` (`server-only`)
+  holds the cached Liveblocks Node client and
+  `getUserColor()` (the cursor color palette).
+  `lib/canvas-types.ts` holds the canvas node/edge types
+  (`CanvasNode`, `CanvasEdge`, `CanvasNodeData`) — the one
+  schema the canvas, storage, templates, AI generation and
+  spec generation share. `lib/canvas-shapes.ts` is the one
+  shape list (name, label, default size), the `shape` node
+  type name, and the drag-and-drop payload
+  (`application/ghost-shape`) with its parser.
+  `lib/canvas-colors.ts` maps node color keys
+  (`data.color`) to design-token classes; nodes store only
+  the key.
+- `liveblocks.config.ts` (repo root) — the global Liveblocks
+  types (Presence, UserMeta, Storage); every Liveblocks hook
+  and the Node client are typed from it.
 - `prisma/` — Prisma schema, one file per model under
   `prisma/models/`, and migrations.
   `prisma.config.ts` (repo root) points the CLI at it and
@@ -80,7 +99,10 @@ Hybrid storage. The database stays lean.
   database stores only the reference/URL.
 - **Liveblocks room storage**: live canvas state (nodes,
   edges) and presence during a session. The room id stays
-  aligned with the project id.
+  aligned with the project id. Storage holds one key,
+  `flow` (`LiveblocksFlow<CanvasNode, CanvasEdge>`), the
+  shape `useLiveblocksFlow` from `@liveblocks/react-flow`
+  syncs; a new room starts with an empty flow.
 
 ## Auth and Access Model
 
@@ -99,7 +121,11 @@ Hybrid storage. The database stays lean.
   owner-only actions.
 - A Liveblocks room token is issued only after verifying
   that the requesting user is the owner or a collaborator
-  of that project.
+  of that project. `POST /api/liveblocks-auth` uses access
+  tokens (`prepareSession`): full access (`*:write`) to
+  exactly the requested room (= project id), never a
+  wildcard pattern. Liveblocks user id = Clerk user id;
+  user info = name, avatar, color.
 - Background task status/tokens are scoped to the user who
   started the run.
 

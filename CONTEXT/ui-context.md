@@ -42,6 +42,13 @@ Current values are shadcn's neutral dark palette (see
 (e.g. a fainter text tone, success state, node colors) are
 added to `globals.css` first, then listed here.
 
+Exception: collaborator cursor colors are hex values in
+`USER_COLORS` in `lib/liveblocks.ts`. They are sent to
+other clients as Liveblocks user info, so they must be
+concrete values, not CSS variables. Each user gets one via
+`getUserColor(userId)`; never redefine the palette
+elsewhere.
+
 ## Typography
 
 | Role      | Font       | Variable                          |
@@ -81,6 +88,31 @@ app-specific wrappers in feature folders instead (e.g.
   `md`). In a project workspace the navbar center shows the
   project name and the right section holds workspace
   actions (`Share`) before the `UserButton`.
+- Canvas: React Flow (`colorMode="dark"`) fills the
+  workspace left of the chat sidebar, with a dot
+  background and a bottom-right minimap
+  (`rounded-lg border border-border`). React Flow's colors
+  come from its `--xy-*` variables, mapped to the tokens in
+  the `.react-flow` block of `app/globals.css`; change them
+  there, not in components. While the room connects the
+  canvas area shows a centered spinner and "Connecting to
+  room…"; a failed connection shows a centered
+  `TriangleAlert` (`text-destructive`) and a short message.
+  The minimap is hidden below `sm` so it doesn't cover the
+  shape panel on phones.
+- Shape panel: a pill-shaped toolbar (`rounded-full`,
+  `bg-card`, `border-border`) centered at the bottom of the
+  canvas, one round icon button per shape (muted icon,
+  `bg-accent` on hover). Buttons are dragged onto the
+  canvas, not clicked.
+- Shape nodes: SVG outline in the node's shape, filled and
+  stroked from the node's color key (`lib/canvas-colors.ts`;
+  `default` = `fill-card`, `stroke-input`,
+  `text-card-foreground`); selected nodes get a thicker
+  `stroke-primary` outline. Label centered. Connection
+  handles on all four sides (`--xy-handle-background-color`
+  = `--muted-foreground`), shown on hover or when selected.
+  New node colors are added to `NODE_COLORS` only.
 - Access denied: centered `Lock` icon, short message and a
   link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center
