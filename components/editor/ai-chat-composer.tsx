@@ -9,7 +9,7 @@ import { ArrowUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { AI_CHAT_MAX_CONTENT_LENGTH } from "@/lib/ai-chat";
+import { DESIGN_PROMPT_MAX_LENGTH } from "@/lib/design-prompt";
 
 export interface AiChatComposerHandle {
   focus: () => void;
@@ -29,7 +29,8 @@ interface AiChatComposerProps {
 // to six lines, then scrolls. Enter sends, Shift+Enter adds a line. Canvas
 // shortcuts ignore keys typed in a textarea, so typing here never zooms,
 // undoes or deletes on the canvas. Disabled while locked, keeping the
-// draft. Stops at the stored message length, so nothing is cut on send.
+// draft. Stops at the longest design prompt, so a message never fails to
+// start a design run (or gets cut) for being too long.
 export function AiChatComposer({
   ref,
   value,
@@ -76,7 +77,7 @@ export function AiChatComposer({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
-        maxLength={AI_CHAT_MAX_CONTENT_LENGTH}
+        maxLength={DESIGN_PROMPT_MAX_LENGTH}
         disabled={isLocked}
         placeholder={isLocked ? "Ghost AI is working…" : "Describe a system…"}
         aria-label="Message AI Architect"

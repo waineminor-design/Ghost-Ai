@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { AiChat } from "@/hooks/use-ai-chat";
 import { useAiStatus } from "@/hooks/use-ai-status";
+import type { DesignRun } from "@/hooks/use-design-run";
 import type { AiChatMessage } from "@/lib/ai-chat";
 import { AI_USER } from "@/lib/ai-user";
 import { cn } from "@/lib/utils";
@@ -23,13 +24,21 @@ const STARTER_PROMPTS = [
 
 // The AI Architect tab: the room's AI status line, then the room's shared
 // messages (or the intro and starter prompts while empty) above the
-// composer. The chat state comes from AiSidebar. While a design run is
-// active the composer is locked for everyone in the room. Must render
-// inside a RoomProvider.
-export function AiChatPanel({ chat }: { chat: AiChat }) {
+// composer. The chat and run state come from AiSidebar. Sending a message
+// starts a design run. While a run is active the composer is locked for
+// everyone in the room, and for the person who sent the prompt from the
+// moment they send it until their run ends. Must render inside a
+// RoomProvider.
+export function AiChatPanel({ chat, designRun }: { chat: AiChat; designRun: DesignRun }) {
   const composerRef = useRef<AiChatComposerHandle>(null);
   const aiStatus = useAiStatus();
-  const isAiWorking = aiStatus.kind === "active";
+  const isLocked = aiStatus.kind === "active" || designRun.isBusy;
+
+  function send() {
+    if (isLocked) return;
+    const message = chat.send();
+    if (message) designRun.start(message);
+  }
 
   function fillComposer(prompt: string) {
     chat.setDraft(prompt);
@@ -42,15 +51,19 @@ export function AiChatPanel({ chat }: { chat: AiChat }) {
       {chat.messages.length === 0 ? (
         <EmptyState onPickPrompt={fillComposer} />
       ) : (
-        <MessageList messages={chat.messages} selfId={chat.selfId} />
+        <MessageList
+          messages={chat.messages}
+          selfId={chat.selfId}
+          startFailedIds={designRun.startFailedIds}
+        />
       )}
       <AiChatComposer
         ref={composerRef}
         value={chat.draft}
         onChange={chat.setDraft}
         canSend={chat.canSend}
-        onSend={chat.send}
-        isLocked={isAiWorking}
+        onSend={send}
+        isLocked={isLocked}
       />
     </>
   );
@@ -66,11 +79,8 @@ function EmptyState({ onPickPrompt }: { onPickPrompt: (prompt: string) => void }
         <p className="text-sm text-muted-foreground">
           Describe a system and I&apos;ll design it on the canvas.
         </p>
-        {/* Until the design agent replies in the chat, say so before
-            people spend time on a prompt. */}
         <p className="text-xs text-muted-foreground">
-          Messages are shared with everyone in this project. Ghost AI
-          doesn&apos;t reply yet: AI replies arrive in the next step.
+          Messages are shared with everyone in this project.
         </p>
       </div>
       <ul aria-label="Starter prompts" className="flex flex-wrap justify-center gap-2">
@@ -89,20 +99,24 @@ function EmptyState({ onPickPrompt }: { onPickPrompt: (prompt: string) => void }
 function MessageList({
   messages,
   selfId,
+  startFailedIds,
 }: {
   messages: AiChatMessage[];
   selfId: string | null;
+  // This user's messages whose design run couldn't start.
+  startFailedIds: ReadonlySet<string>;
 }) {
   const listRef = useRef<HTMLOListElement>(null);
 
-  // Keep the newest message in view. Scrolls the ScrollArea's own viewport
-  // (not scrollIntoView, which could also scroll the editor around it).
+  // Keep the newest message (or error note) in view. Scrolls the
+  // ScrollArea's own viewport (not scrollIntoView, which could also scroll
+  // the editor around it).
   useEffect(() => {
     const viewport = listRef.current?.closest<HTMLElement>(
       '[data-slot="scroll-area-viewport"]',
     );
     viewport?.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [messages, startFailedIds]);
 
   return (
     <ScrollArea className="min-h-0 flex-1">
@@ -112,6 +126,7 @@ function MessageList({
             <MessageBubble
               message={message}
               isOwn={selfId !== null && message.authorId === selfId}
+              startFailed={startFailedIds.has(message.id)}
             />
           </li>
         ))}
@@ -121,8 +136,18 @@ function MessageList({
 }
 
 // User messages on the right under the author's name ("You" for your
-// own), Ghost AI's on the left after its icon, under "Ghost AI".
-function MessageBubble({ message, isOwn }: { message: AiChatMessage; isOwn: boolean }) {
+// own), Ghost AI's on the left after its icon, under "Ghost AI". A message
+// whose design run couldn't start gets an error note under it, shown only
+// to its sender.
+function MessageBubble({
+  message,
+  isOwn,
+  startFailed,
+}: {
+  message: AiChatMessage;
+  isOwn: boolean;
+  startFailed: boolean;
+}) {
   const isUser = message.role === "user";
   const author = isUser ? (isOwn ? "You" : message.authorName) : AI_USER.info.name;
 
@@ -151,6 +176,11 @@ function MessageBubble({ message, isOwn }: { message: AiChatMessage; isOwn: bool
         >
           {message.content}
         </p>
+        {startFailed && (
+          <p role="alert" className="text-xs text-destructive">
+            Couldn&apos;t start the design — try again
+          </p>
+        )}
       </div>
     </div>
   );

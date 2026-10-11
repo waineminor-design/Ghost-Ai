@@ -30,8 +30,11 @@ paths below are relative to it.
   work. `POST /api/ai/design` starts a `design-agent` run
   (records a `TaskRun` row, then triggers, then stores the
   run id; passes the signed-in user's name as
-  `startedByName`); `POST /api/ai/runs/[runId]/token` returns a
-  Trigger.dev public token that can read only that run.
+  `startedByName`; prompts are 1 to 2,000 characters after
+  trimming, `DESIGN_PROMPT_MAX_LENGTH` in
+  `lib/design-prompt.ts`); `POST /api/ai/runs/[runId]/token`
+  returns a Trigger.dev public token that can read only that
+  run.
 - `trigger/` — Trigger.dev task definitions (AI design
   generation, spec generation). The only place long-running
   AI work runs. One task per file, each a named export with
@@ -103,8 +106,17 @@ paths below are relative to it.
     Ghost AI message (author `AI_USER`, optional `runId`)
     to the room's `aiChat` through `mutateStorage`, with
     the same trim, length cap and 200-message cap as the
-    sidebar; blank text posts nothing. Not called yet:
-    feature 27 connects the agent to the chat.
+    sidebar; blank text posts nothing. The task calls it
+    (feature 27) with the run's `runId`: after a successful
+    apply, with the summary (before the `done` status); on
+    failure, from the task's `onFailure` hook, which runs once
+    after the last retry, with "I couldn't finish that design.
+    Please try again." (never error details). So the reply is
+    saved even if the person who started the run has left. A
+    failed post is logged, never thrown (a throw after the
+    apply would retry the run and apply twice). Crashed,
+    cancelled and timed-out runs get no failure reply
+    (Trigger.dev skips `onFailure` for them).
 - `trigger.config.ts` (repo root) — Trigger.dev config:
   project ref from `TRIGGER_PROJECT_REF`, Node runtime,
   tasks in `./trigger`, max duration 3600 s, retries on by
@@ -127,7 +139,16 @@ paths below are relative to it.
   while the room connects and reads storage with the
   non-suspense hooks;
   `components/canvas/canvas.tsx` is the React Flow canvas
-  inside it. `components/canvas/collaborator-cursors.tsx`
+  inside it. `CanvasRoom` also holds the `ReactFlowProvider`
+  around both the canvas and the sidebar, so the sidebar can
+  fit this user's view after their design run.
+  `components/editor/design-run-follower.tsx` follows the
+  run this user started with `useRealtimeRun`
+  (`@trigger.dev/react-hooks`; payload, output and metadata
+  skipped) and reports when it ends; the sidebar mounts it
+  only once both a run id and a non-empty token exist (the
+  hook throws "missing access token" during render
+  otherwise), keyed by the run id. `components/canvas/collaborator-cursors.tsx`
   draws other users' cursors (Liveblocks' React Flow
   `<Cursors>`, `cursor` presence in flow coordinates).
   The navbar is outside the room, so the avatar stack
@@ -152,8 +173,14 @@ paths below are relative to it.
   sidebar: the room's shared `aiChat` messages through
   `useStorage`, sending through `useMutation` inside
   `room.history.disable`, so the canvas Undo never removes
-  a chat message; only the draft is local; no AI replies
-  yet), and the
+  a chat message; only the draft is local; `send` returns
+  the posted message), the design run this user started
+  (`use-design-run.ts`: `POST /api/ai/design` with the
+  message as the prompt, then the run token, then follows
+  the run until it ends; a failed start marks the message
+  with a local-only error note; a failed token request just
+  stops following; fits the view after a successful run),
+  and the
   room's AI status as it should be shown now
   (`use-ai-status.ts`: re-renders when a finished status
   should disappear or an unfinished one goes stale).

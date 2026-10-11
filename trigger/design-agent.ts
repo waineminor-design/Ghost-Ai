@@ -15,6 +15,7 @@ import {
   getCanvasCenter,
   readRoomCanvas,
 } from "@/lib/design-agent-canvas";
+import { appendAssistantMessage } from "@/lib/design-agent-chat";
 import { createAiPresence } from "@/lib/design-agent-presence";
 import { DESIGN_AGENT_SYSTEM_PROMPT } from "@/lib/design-agent-prompt";
 import { writeAiStatus } from "@/lib/design-agent-status";
@@ -130,11 +131,30 @@ async function recordStatus(
   }
 }
 
+// Ghost AI's chat reply when a run fails. The error details stay in the
+// run log; people only see this.
+const FAILURE_REPLY = "I couldn't finish that design. Please try again.";
+
+// Posts Ghost AI's reply to the room's chat, which everyone in the project
+// sees, even if the person who started the run has left. Logged, never
+// thrown: after a successful apply, a throw would retry the run and apply
+// the changes twice.
+async function postReply(roomId: string, content: string, runId: string) {
+  try {
+    await appendAssistantMessage(roomId, content, runId);
+  } catch (error) {
+    logger.warn("design-agent could not post its chat reply", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 // Reads the project's canvas, asks Gemini what to change for the prompt
 // (as tool calls, one per canvas action), and applies the valid actions to
 // the project's Liveblocks room in one storage mutation, so everyone in
-// the room sees the diagram appear. Callers trigger it by id
-// ("design-agent").
+// the room sees the diagram appear. Replies in the room's chat with the
+// summary, or with a short failure message once every attempt has failed.
+// Callers trigger it by id ("design-agent").
 export const designAgent = task({
   id: "design-agent",
   run: async (payload: DesignAgentPayload, { ctx, signal }): Promise<DesignAgentOutput> => {
@@ -194,6 +214,7 @@ export const designAgent = task({
 
       const changes = describeChanges({ ...applied, skipped });
       const summary = [result.text.trim(), changes].filter(Boolean).join("\n\n");
+      await postReply(roomId, summary, ctx.run.id);
       // The room's status line gets only the short count of changes.
       await recordStatus(target, "done", summary, changes);
       logger.log("design-agent applied actions", {
@@ -218,5 +239,11 @@ export const designAgent = task({
         });
       });
     }
+  },
+  // Called once, after the last retry fails (not for each failed attempt),
+  // so the chat gets one failure reply. Trigger.dev skips it for crashed,
+  // cancelled or timed-out runs. After `run`, so its types come from it.
+  onFailure: async ({ payload, ctx }) => {
+    await postReply(payload.projectId, FAILURE_REPLY, ctx.run.id);
   },
 });

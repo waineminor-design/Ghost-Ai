@@ -11,7 +11,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
       {/* Keyed so switching projects starts a fresh room state (and a
           fresh AI chat). */}
       <CanvasRoom key={projectId} projectId={projectId}>
-        <AiSidebar />
+        <AiSidebar projectId={projectId} />
       </CanvasRoom>
     </div>
   );

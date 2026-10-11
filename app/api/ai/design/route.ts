@@ -1,6 +1,7 @@
 import { idempotencyKeys, tasks } from "@trigger.dev/sdk";
 
 import { jsonError, readJsonObject } from "@/lib/api-response";
+import { DESIGN_PROMPT_MAX_LENGTH } from "@/lib/design-prompt";
 import { getCurrentIdentity, getProjectAccess } from "@/lib/project-access";
 import {
   createTaskRun,
@@ -8,8 +9,6 @@ import {
   setTaskRunRunId,
 } from "@/lib/task-run-data";
 import type { designAgent } from "@/trigger/design-agent";
-
-const PROMPT_MAX_LENGTH = 2000;
 
 // POST /api/ai/design — body `{ projectId: string; prompt: string }`.
 // Starts a `design-agent` run for the project and returns 202 with
@@ -31,9 +30,9 @@ export async function POST(request: Request) {
     return jsonError("prompt must be a string", 400);
   }
   const prompt = rawPrompt.trim();
-  if (prompt.length === 0 || prompt.length > PROMPT_MAX_LENGTH) {
+  if (prompt.length === 0 || prompt.length > DESIGN_PROMPT_MAX_LENGTH) {
     return jsonError(
-      `prompt must be 1 to ${PROMPT_MAX_LENGTH} characters`,
+      `prompt must be 1 to ${DESIGN_PROMPT_MAX_LENGTH} characters`,
       400,
     );
   }

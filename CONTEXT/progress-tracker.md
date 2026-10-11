@@ -5,16 +5,38 @@ change.
 
 ## Current Phase
 
-- Feature 26 (Sidebar Chat Feed) built; `tsc`, `eslint`,
-  `npm run build` pass and the chat storage logic passed
-  offline tests. The live check (two browsers) still needs
-  the owner. Feature 25's live check is also still pending.
-- **Owner: restart `npm run dev`** (Ctrl+C, then start
-  again) so it picks up the new code.
+- Feature 27 (Design Agent Frontend) built; `tsc`,
+  `eslint`, `npm run build` pass and the run-tracking hook
+  passed offline tests. The live check (a real design run
+  in two browsers) still needs the owner. Features 25 and
+  26's live checks are also still pending; feature 27's
+  check covers most of them.
+- **Owner: restart both `npm run dev` and
+  `npm run trigger:dev`** (Ctrl+C in each, then start
+  again) so they pick up the new code. A new package
+  (`@trigger.dev/react-hooks`) was installed.
 
 ## Current Goal
 
-- Owner runs feature 26's check: open the same project in
+- Owner runs feature 27's check: open the same project in
+  two browsers (e.g. a normal and a private window), with
+  `npm run dev` and `npm run trigger:dev` both running. In
+  one window, type "Design a URL shortener" in the AI
+  Architect tab and press Enter. Expected in both windows:
+  the message appears; the status line shows the spinner
+  and the steps; the composer is disabled; the diagram
+  appears on the canvas; Ghost AI's summary appears as a
+  chat reply; then the composer works again. In the window
+  that sent it, the canvas zooms to show the whole diagram.
+  Opening or reloading a project (with or without a run
+  going) never shows a "missing access token" error.
+  Failure checks (optional, harder to set up): a failed run
+  shows "I couldn't finish that design. Please try again."
+  once and re-enables the composer; stopping `npm run dev`
+  just before sending shows "Couldn't start the design —
+  try again" under the message, only in that window, and
+  the composer works again.
+- Then feature 26's check: open the same project in
   two browsers (e.g. a normal and a private window, signed
   in as two people, or one person twice). Expected: a
   project with no chat shows the intro, the note that
@@ -1717,6 +1739,84 @@ change.
   - Not verified (needs the owner's two browsers): messages
     appearing live for another user, surviving a reload,
     and Undo leaving them alone.
+- 27 Design Agent Frontend (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/27-DESIGN-AGENT-FRONTEND.md`):
+  - Installed `@trigger.dev/react-hooks` 4.7.3 (exact, the
+    same version as `@trigger.dev/sdk`).
+  - Sending: the chat panel posts the message to `aiChat`
+    (`useAiChat().send` now returns it), then
+    `hooks/use-design-run.ts` sends
+    `POST /api/ai/design` `{ projectId, prompt }`. On `202`
+    it keeps the `runId`, then asks
+    `POST /api/ai/runs/[runId]/token` for a token. A failed
+    start (error status, no connection, or no `runId` in the
+    answer) adds a local-only note under the message,
+    "Couldn't start the design — try again"
+    (`text-destructive`, `role="alert"`), and unlocks.
+  - Composer lock: the room's active `aiStatus` (feature 25)
+    for everyone, plus, for the sender, from sending until
+    their run ends (covers the gap before the run writes
+    `started`).
+  - Following: `components/editor/design-run-follower.tsx`
+    calls `useRealtimeRun` (payload, output and metadata
+    skipped) and is mounted by the sidebar only when both a
+    run id and a non-empty token exist, keyed by the run id.
+    It ends on the run's final state (`isCompleted`, or
+    `isCancelled`, which `isCompleted` doesn't include), so a
+    retried attempt doesn't end it. On the end the run id and
+    token are cleared. Mounted in `AiSidebar`, not the tab
+    panel, so switching to Specs doesn't drop it.
+  - Replies: `trigger/design-agent.ts` posts the summary to
+    `aiChat` with the `runId` after a successful apply
+    (before the `done` status), and the friendly failure
+    reply from the task's `onFailure` hook, which Trigger.dev
+    calls once after the last retry, so a run that fails
+    three attempts posts one reply. A failed post is logged,
+    never thrown.
+  - Canvas: after a successful run the sender's view fits
+    the whole diagram (`fitView`, the 200 ms animation from
+    `use-canvas-actions.ts`, now exported). To reach React
+    Flow from the sidebar, `ReactFlowProvider` moved from
+    `Canvas` up to `CanvasRoom`, around the canvas and the
+    sidebar.
+  - The empty chat's note no longer says AI replies arrive
+    in the next step.
+  - Extra, not in the spec: the composer now stops at 2,000
+    characters (was 4,000). Why: every message is now a
+    design prompt and the start route rejects prompts over
+    2,000, so a longer message would always get "Couldn't
+    start the design" and fail again on every retry. The
+    limit is one shared constant, `DESIGN_PROMPT_MAX_LENGTH`
+    in the new `lib/design-prompt.ts`, used by the route and
+    the composer. Stored chat messages keep the 4,000 cap
+    (Ghost AI's summaries can be longer).
+  - Extra, not in the spec: if the token request fails, the
+    sender stops following the run (and unlocks) instead of
+    showing an error: the run carries on, the room's status
+    line still locks the composer and the reply still
+    arrives. Only the fit view is lost. A broken realtime
+    subscription is handled the same way.
+  - `CONTEXT/architecture.md` and `CONTEXT/ui-context.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Scratch
+    tests (no network, no keys; real React and React Flow
+    provider in jsdom, stubbed `fetch`): 21 checks — the
+    start request's URL and body; error status, network
+    error and a `202` without `runId` each add the note to
+    the right message and unlock, with no token request;
+    after `202` the run is not followed until the token
+    arrives, the token request names the run, a second send
+    while busy is ignored; once followed, ending (success or
+    failure) clears the run and token and a new run can
+    start; a failed token request or an empty token unlocks
+    without a note and is never followed; unmounting
+    mid-request aborts it with no React errors.
+  - Not verified (needs the owner, `trigger:dev` and two
+    browsers): the live run end to end, the replies in the
+    chat, the realtime end detection, the fit view, and the
+    failure reply. Not tested offline: the follower itself
+    (it needs Trigger.dev's realtime API) and the task's
+    reply calls (the helper they use was tested in 26).
 
 ## In Progress
 
@@ -1724,9 +1824,28 @@ change.
 
 ## Next Up
 
-- 27 Design Agent Frontend
+- No spec yet after 27. Spec generation (the Specs tab and
+  `spec-generator`) is the next area in the overview.
 
 ## Open Questions
+
+- Sender's lock while a run waits to start (feature 27):
+  the sender's composer stays locked from sending until
+  Trigger.dev reports the run's end. If no worker picks the
+  run up (e.g. `npm run trigger:dev` isn't running), it
+  stays queued and the sender's composer stays locked until
+  they reload; other people aren't locked (the run never
+  wrote `started`). Say if the sender's lock should give up
+  after a while.
+- No chat reply for crashed, cancelled or timed-out runs
+  (feature 27): Trigger.dev doesn't call `onFailure` for
+  them, so only failures after all retries get "I couldn't
+  finish that design." Say if those should reply too.
+- Fit view timing (feature 27): the sender's view fits
+  when Trigger.dev reports the run's end. The diagram is
+  written to the room before that, so it has normally
+  arrived; if the room update were slower than the run
+  update, the fit would miss the newest nodes.
 
 - Message alignment in the shared chat (feature 26): every
   person's messages stay on the right in `bg-primary` (as

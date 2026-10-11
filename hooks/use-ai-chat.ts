@@ -24,15 +24,17 @@ export interface AiChat {
   setDraft: (draft: string) => void;
   // False while the draft is blank or the room isn't ready.
   canSend: boolean;
-  send: () => void;
+  // Posts the draft and clears it; returns the posted message, or null
+  // when nothing could be sent.
+  send: () => AiChatMessage | null;
 }
 
 // The AI Architect chat, owned by AiSidebar. Messages live in the room's
 // `aiChat` storage, so everyone in the project sees the same conversation
 // in real time and it survives a reload; the draft stays local, so it
 // survives switching tabs. Sending stays out of the undo history, so the
-// canvas Undo never removes a chat message. Ghost AI doesn't reply here
-// yet. Must be used inside a RoomProvider.
+// canvas Undo never removes a chat message. Ghost AI's replies are posted
+// by the design agent. Must be used inside a RoomProvider.
 export function useAiChat(): AiChat {
   // null until storage has loaded; NO_MESSAGES for a room without a chat.
   const stored = useStorage((root) => root.aiChat ?? NO_MESSAGES);
@@ -47,8 +49,8 @@ export function useAiChat(): AiChat {
     appendAiChatMessage(storage, message);
   }, []);
 
-  function send() {
-    if (!canSend) return;
+  function send(): AiChatMessage | null {
+    if (!canSend) return null;
     const message: AiChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -59,6 +61,7 @@ export function useAiChat(): AiChat {
     };
     room.history.disable(() => appendMessage(message));
     setDraft("");
+    return message;
   }
 
   return { messages, selfId: self?.id ?? null, draft, setDraft, canSend, send };

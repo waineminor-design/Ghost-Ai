@@ -161,16 +161,26 @@ app-specific wrappers in feature folders instead (e.g.
   for assistant messages. While empty: a centered `Sparkles`
   circle, the intro "Describe a system and I'll design it on
   the canvas", a muted `text-xs` note that messages are
-  shared with the project and AI replies arrive in the
-  next step, and outline starter-prompt buttons that fill
-  the composer. Composer pinned at the bottom
+  shared with the project, and outline starter-prompt
+  buttons that fill the composer. Sending a message starts
+  a design run; Ghost AI's reply (the summary, or "I
+  couldn't finish that design. Please try again.") arrives
+  as an assistant message for everyone. If the run can't
+  start, a `text-xs text-destructive` note "Couldn't start
+  the design — try again" (`role="alert"`) appears under
+  the message, only for its sender. Composer pinned at the bottom
   (`border-t`): a one-line `Textarea` that grows to six
-  lines and then scrolls (stops at 4,000 characters), and
+  lines and then scrolls (stops at 2,000 characters, the
+  longest design prompt), and
   an icon-only send button (`ArrowUp`, disabled while the
   text is blank or the room hasn't connected). While a
   run is active (status line spinner showing) both are
   disabled for everyone in the room, with the placeholder
-  "Ghost AI is working…"; a draft already typed stays. Enter
+  "Ghost AI is working…"; a draft already typed stays. For
+  the person who sent the prompt they are disabled from
+  the moment they send until their run ends. After a
+  successful run, their canvas fits the view to the whole
+  diagram (only their view moves). Enter
   sends, Shift+Enter adds a line. Specs: a short line of
   copy, a full-width `Generate spec` button (disabled, with
   "Spec generation is coming soon."), and an example spec
