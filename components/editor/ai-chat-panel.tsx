@@ -51,9 +51,17 @@ function EmptyState({ onPickPrompt }: { onPickPrompt: (prompt: string) => void }
       <div className="flex size-10 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-accent-foreground">
         <Sparkles className="size-5" />
       </div>
-      <p className="text-sm text-muted-foreground">
-        Describe a system and I&apos;ll design it on the canvas
-      </p>
+      <div className="flex flex-col gap-1">
+        <p className="text-sm text-muted-foreground">
+          Describe a system and I&apos;ll design it on the canvas.
+        </p>
+        {/* Until the design agent is wired up, say so before people
+            spend time on a prompt. */}
+        <p className="text-xs text-muted-foreground">
+          Coming soon: AI design generation isn&apos;t connected yet, so
+          messages get a placeholder reply for now.
+        </p>
+      </div>
       <ul aria-label="Starter prompts" className="flex flex-wrap justify-center gap-2">
         {STARTER_PROMPTS.map((prompt) => (
           <li key={prompt}>
