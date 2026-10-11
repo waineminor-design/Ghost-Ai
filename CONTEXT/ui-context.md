@@ -83,13 +83,19 @@ app-specific wrappers in feature folders instead (e.g.
 ## Layout Patterns
 
 - Editor: full-viewport layout — top navbar, canvas filling
-  the rest, a floating left project sidebar, and a right
-  chat/specs sidebar (fixed width, `border-l`, hidden below
-  `md`). In a project workspace the navbar center shows the
-  project name and the right section holds workspace
-  actions (`Share`) before the `UserButton`.
+  the whole area under it, and two sidebars floating over
+  the canvas: the project sidebar on the left and the AI
+  chat/specs sidebar on the right (`w-80`, `rounded-xl`,
+  `bg-sidebar`, `shadow-lg`). Neither takes width from the
+  canvas; closed, each slides fully off-screen and is
+  `inert`. The AI sidebar starts open from `lg` up and
+  closed below. In a project workspace the navbar center
+  shows the project name and the right section holds the
+  AI sidebar toggle (`PanelRightOpen` / `PanelRightClose`)
+  and `Share` (icon only below `sm`) before the
+  `UserButton`.
 - Canvas: React Flow (`colorMode="dark"`) fills the
-  workspace left of the chat sidebar, with a dot
+  workspace, with a dot
   background and a bottom-right minimap
   (`rounded-lg border border-border`). React Flow's colors
   come from its `--xy-*` variables, mapped to the tokens in
@@ -104,7 +110,10 @@ app-specific wrappers in feature folders instead (e.g.
   `bg-card`, `border-border`) centered at the bottom of the
   canvas, one round icon button per shape (muted icon,
   `bg-accent` on hover). Buttons are dragged onto the
-  canvas, not clicked.
+  canvas (or clicked to add at the view center). While
+  dragging, the drag image is the shape's outline at 60%
+  size (node fill, `stroke-primary`), drawn by the same
+  `ShapeOutline` as the nodes.
 - Shape nodes: SVG outline in the node's shape, filled and
   stroked from the node's color key (`lib/canvas-colors.ts`;
   `default` = `fill-card`, `stroke-input`,

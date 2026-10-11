@@ -1,6 +1,12 @@
 import { Suspense, use } from "react";
 import { UserButton } from "@clerk/nextjs";
-import { PanelLeftClose, PanelLeftOpen, Share2 } from "lucide-react";
+import {
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Share2,
+} from "lucide-react";
 
 import { ShareDialog } from "@/components/editor/share-dialog";
 import { Button } from "@/components/ui/button";
@@ -11,12 +17,16 @@ import type { EditorProjects } from "@/lib/projects";
 interface EditorNavbarProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
+  isAiSidebarOpen: boolean;
+  onToggleAiSidebar: () => void;
   projectsPromise: Promise<EditorProjects>;
 }
 
 export function EditorNavbar({
   isSidebarOpen,
   onToggleSidebar,
+  isAiSidebarOpen,
+  onToggleAiSidebar,
   projectsPromise,
 }: EditorNavbarProps) {
   const ToggleIcon = isSidebarOpen ? PanelLeftClose : PanelLeftOpen;
@@ -41,7 +51,11 @@ export function EditorNavbar({
       </div>
       <div className="flex items-center justify-end gap-2">
         <Suspense>
-          <WorkspaceActions projectsPromise={projectsPromise} />
+          <WorkspaceActions
+            projectsPromise={projectsPromise}
+            isAiSidebarOpen={isAiSidebarOpen}
+            onToggleAiSidebar={onToggleAiSidebar}
+          />
         </Suspense>
         <UserButton />
       </div>
@@ -64,20 +78,37 @@ function ProjectName({
 // Actions for the open workspace; nothing outside a workspace.
 function WorkspaceActions({
   projectsPromise,
+  isAiSidebarOpen,
+  onToggleAiSidebar,
 }: {
   projectsPromise: Promise<EditorProjects>;
+  isAiSidebarOpen: boolean;
+  onToggleAiSidebar: () => void;
 }) {
   const { currentUserId } = use(projectsPromise);
   const project = useCurrentProject(projectsPromise);
   if (!project) return null;
 
-  // Keyed so switching projects starts with fresh share state.
+  const AiToggleIcon = isAiSidebarOpen ? PanelRightClose : PanelRightOpen;
+
   return (
-    <ShareAction
-      key={project.id}
-      projectId={project.id}
-      isOwner={project.ownerId === currentUserId}
-    />
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onToggleAiSidebar}
+        aria-label={isAiSidebarOpen ? "Close AI sidebar" : "Open AI sidebar"}
+        aria-expanded={isAiSidebarOpen}
+      >
+        <AiToggleIcon className="size-5" />
+      </Button>
+      {/* Keyed so switching projects starts with fresh share state. */}
+      <ShareAction
+        key={project.id}
+        projectId={project.id}
+        isOwner={project.ownerId === currentUserId}
+      />
+    </>
   );
 }
 
@@ -92,9 +123,15 @@ function ShareAction({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={share.openDialog}>
+      {/* Icon-only below `sm` so the right section fits on phones. */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={share.openDialog}
+        className="max-sm:pr-1.5"
+      >
         <Share2 data-icon="inline-start" />
-        Share
+        <span className="max-sm:sr-only">Share</span>
       </Button>
       <ShareDialog share={share} isOwner={isOwner} />
     </>

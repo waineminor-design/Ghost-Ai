@@ -5,12 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 12 (Shape Panel) complete; awaiting the owner's
-  two-account browser check (features 11 and 12)
+- Feature 13 (Canvas Layout and Drag Preview) complete;
+  awaiting the owner's browser check
 
 ## Current Goal
 
-- Next feature spec (none written after 12 yet)
+- Feature 14 (Node Editing)
 
 ## Completed
 
@@ -691,13 +691,74 @@ change.
     viewport, so the same node sits at different screen
     positions. Firefox and edge connections not checked.
 
+- 13 Canvas Layout and Drag Preview (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/13-CANVAS-LAYOUT-AND-DRAG-PREVIEW.md`):
+  - `hooks/use-ai-sidebar-state.ts` — `useAiSidebarState()`
+    (owned by `EditorShell`): `isOpen`, `followsScreenSize`,
+    `toggle`. Until the user toggles, the state follows a
+    `(min-width: 64rem)` media query (Tailwind `lg`) via
+    `useSyncExternalStore`; the server renders the desktop
+    (open) state.
+  - `components/editor/ai-sidebar-context.ts` —
+    `AiSidebarContext` + `useAiSidebarVisibility()`, so the
+    workspace page reads the state the navbar toggles.
+  - `components/editor/ai-sidebar.tsx` (`'use client'`
+    entry) — the AI chat placeholder as a floating panel:
+    `absolute inset-y-2 right-2 z-20 w-80`, `rounded-xl`,
+    `bg-sidebar`, `shadow-lg`, like the project sidebar.
+    Slides off-screen via `translate-x` and is `inert` when
+    closed. While it follows the screen size its position
+    comes from CSS (`lg:translate-x-0`), so the first paint
+    is right on phones and desktops with no slide-in flash.
+    `z-20` keeps it under the project sidebar's mobile scrim
+    (`z-30`) and the project sidebar (`z-40`).
+  - `components/editor/project-workspace.tsx` — the canvas
+    section fills the whole area under the navbar; the AI
+    sidebar floats over it. It is no longer hidden below
+    `md` (closed by default there instead).
+  - `components/editor/editor-navbar.tsx` — AI sidebar
+    toggle (`PanelRightOpen` / `PanelRightClose`, ghost icon
+    button, `aria-label` "Open AI sidebar" / "Close AI
+    sidebar", `aria-expanded`) before `Share`, in workspaces
+    only. The `Share` label is `sr-only` below `sm` (icon
+    only, accessible name unchanged) so the right section
+    still fits on a 375 px phone with the extra button.
+  - `components/canvas/shape-outline.tsx` — `ShapeOutline`
+    moved here unchanged from `shape-node.tsx`; the node and
+    the drag preview both import it.
+  - `components/canvas/shape-drag-preview.tsx` —
+    `setShapeDragImage(dataTransfer, payload)`: renders the
+    shape's outline at 60% of its default size into a
+    temporary off-screen `<div>` (own React root,
+    `flushSync`), calls `setDragImage` with the offset at
+    the outline's center (matching how the drop centers the
+    node), and unmounts + removes the element in a
+    `setTimeout` after dragstart. Preview paint: node fill +
+    `stroke-primary` (the default `stroke-input` is 15%
+    white and nearly vanishes once the browser fades the
+    drag image). Called from the panel's `startShapeDrag`;
+    the drag payload and drop handling are unchanged.
+  - Verified: `tsc`, `eslint`, `npm run build` pass. Built
+    CSS contains every new class (`-top-[9999px]`,
+    `lg:translate-x-0`, `translate-x-[calc(100%+0.5rem)]`,
+    `max-sm:sr-only`, ...). A tsx script rendered
+    `ShapeOutline` for all six shapes at preview size.
+  - Not verified (needs a browser signed in with Clerk): the
+    drag image itself in each browser, the sidebar sliding
+    and toggling, the default state on a phone vs desktop,
+    and drop-and-sync still working. Off-screen drag-image
+    elements are known to work in Chromium and Firefox;
+    Safari is the one to watch.
+  - Known: while the AI sidebar is open it covers the
+    bottom-right minimap; feature 17 removes the minimap.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 13 (spec not yet in `CONTEXT/FEATURE-SPECS/`)
+- Feature 14 (Node Editing)
 
 ## Open Questions
 
@@ -748,6 +809,20 @@ change.
 
 ## Architecture Decisions
 
+- The AI sidebar's open state lives in `EditorShell` (via
+  `useAiSidebarState`) and reaches the workspace page through
+  `AiSidebarContext`. Why: the toggle is in the navbar
+  (shared editor layout) while the sidebar is rendered by
+  the workspace page; the layout can't pass props to the
+  page. Same pattern as `ProjectDialogsContext`.
+- "Desktop" for the AI sidebar's default is Tailwind `lg`
+  (1024 px), not `md`. Why: between 768 and ~900 px an open
+  sidebar would cover the right end of the bottom-center
+  shape panel, so tablets start closed.
+- `ShapeOutline` (`components/canvas/shape-outline.tsx`) is
+  the only shape geometry. Anything that draws a shape
+  (nodes, drag preview, later templates/thumbnails) uses
+  it.
 - Shape nodes have four `source` handles and the canvas
   uses `ConnectionMode.Loose`. Why: in React Flow's default
   strict mode a source handle only connects to a target
