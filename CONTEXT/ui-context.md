@@ -77,7 +77,12 @@ app-specific wrappers in feature folders instead (e.g.
 
 - Editor: full-viewport layout — top navbar, canvas filling
   the rest, a floating left project sidebar, and a right
-  chat/specs sidebar.
+  chat/specs sidebar (fixed width, `border-l`, hidden below
+  `md`). In a project workspace the navbar center shows the
+  project name and the right section holds workspace
+  actions (`Share`) before the `UserButton`.
+- Access denied: centered `Lock` icon, short message and a
+  link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center
   and right sections and a subtle bottom border.
 - Project sidebar: floats above the canvas and slides in

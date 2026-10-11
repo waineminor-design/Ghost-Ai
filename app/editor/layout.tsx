@@ -1,7 +1,8 @@
 import { Suspense, type ReactNode } from "react";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 
 import { EditorShell } from "@/components/editor/editor-shell";
+import { getCurrentIdentity } from "@/lib/project-access";
 import { listProjectsForUser, type ProjectRecord } from "@/lib/project-data";
 import type { EditorProjects, Project } from "@/lib/projects";
 
@@ -23,16 +24,17 @@ function EditorChrome({ children }: { children: ReactNode }) {
 }
 
 async function loadEditorProjects(): Promise<EditorProjects> {
-  const { userId, redirectToSignIn } = await auth();
-  if (!userId) return redirectToSignIn();
+  const identity = await getCurrentIdentity();
+  if (!identity) return (await auth()).redirectToSignIn();
 
   // Shared projects match collaborator rows by the primary email.
-  const user = await currentUser();
-  const email = user?.primaryEmailAddress?.emailAddress ?? null;
-  const { owned, shared } = await listProjectsForUser(userId, email);
+  const { owned, shared } = await listProjectsForUser(
+    identity.userId,
+    identity.email,
+  );
 
   return {
-    currentUserId: userId,
+    currentUserId: identity.userId,
     owned: owned.map(toProject),
     shared: shared.map(toProject),
   };

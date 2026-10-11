@@ -52,6 +52,15 @@ function isPrismaError(error: unknown, code: string): boolean {
   );
 }
 
+// Projects with a collaborator row whose email matches (case-insensitive).
+function hasCollaboratorEmail(email: string): Prisma.ProjectWhereInput {
+  return {
+    collaborators: {
+      some: { email: { equals: email, mode: "insensitive" } },
+    },
+  };
+}
+
 // Owned projects, plus projects where a collaborator row matches
 // `email`. Newest first.
 export async function listProjectsForUser(
@@ -66,12 +75,7 @@ export async function listProjectsForUser(
     }),
     email
       ? prisma.project.findMany({
-          where: {
-            ownerId: { not: userId },
-            collaborators: {
-              some: { email: { equals: email, mode: "insensitive" } },
-            },
-          },
+          where: { ownerId: { not: userId }, ...hasCollaboratorEmail(email) },
           select: projectSelect,
           orderBy: { createdAt: "desc" },
         })
@@ -79,6 +83,25 @@ export async function listProjectsForUser(
   ]);
 
   return { owned, shared };
+}
+
+// The project when `userId` owns it or a collaborator row matches
+// `email`; null when it does not exist or the user has no access.
+export async function findAccessibleProject(
+  projectId: string,
+  userId: string,
+  email: string | null,
+): Promise<ProjectRecord | null> {
+  return prisma.project.findFirst({
+    where: {
+      id: projectId,
+      OR: [
+        { ownerId: userId },
+        ...(email ? [hasCollaboratorEmail(email)] : []),
+      ],
+    },
+    select: projectSelect,
+  });
 }
 
 export async function createProject(

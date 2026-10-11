@@ -1,4 +1,5 @@
 import { Suspense, use } from "react";
+import Link from "next/link";
 import {
   Folder,
   FolderOpen,
@@ -13,6 +14,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useCurrentProjectId } from "@/hooks/use-current-project";
 import type { EditorProjects, Project } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 
@@ -124,6 +126,7 @@ function ProjectList({
   onDeleteProject,
 }: ProjectListProps) {
   const { currentUserId, [group]: projects } = use(projectsPromise);
+  const currentProjectId = useCurrentProjectId();
 
   if (projects.length === 0) {
     return <EmptyState icon={emptyIcon} message={emptyMessage} />;
@@ -131,39 +134,52 @@ function ProjectList({
 
   return (
     <ul className="flex flex-col gap-0.5">
-      {projects.map((project) => (
-        <li
-          key={project.id}
-          className="group flex h-9 items-center gap-2 rounded-md px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        >
-          <Folder className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate">{project.name}</span>
-          {/* Only the owner can rename or delete a project. */}
-          {project.ownerId === currentUserId && (
-            <div className="flex shrink-0 items-center gap-0.5 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => onRenameProject(project)}
-                aria-label={`Rename ${project.name}`}
-                title="Rename"
-              >
-                <Pencil />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => onDeleteProject(project)}
-                aria-label={`Delete ${project.name}`}
-                title="Delete"
-                className="hover:text-destructive"
-              >
-                <Trash2 />
-              </Button>
-            </div>
-          )}
-        </li>
-      ))}
+      {projects.map((project) => {
+        const isCurrent = project.id === currentProjectId;
+
+        return (
+          <li
+            key={project.id}
+            className={cn(
+              "group flex h-9 items-center gap-2 rounded-md px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              isCurrent && "bg-sidebar-accent text-sidebar-accent-foreground",
+            )}
+          >
+            <Link
+              href={`/editor/${encodeURIComponent(project.id)}`}
+              aria-current={isCurrent ? "page" : undefined}
+              className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Folder className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate">{project.name}</span>
+            </Link>
+            {/* Only the owner can rename or delete a project. */}
+            {project.ownerId === currentUserId && (
+              <div className="flex shrink-0 items-center gap-0.5 md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => onRenameProject(project)}
+                  aria-label={`Rename ${project.name}`}
+                  title="Rename"
+                >
+                  <Pencil />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => onDeleteProject(project)}
+                  aria-label={`Delete ${project.name}`}
+                  title="Delete"
+                  className="hover:text-destructive"
+                >
+                  <Trash2 />
+                </Button>
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

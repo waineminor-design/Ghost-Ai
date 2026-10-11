@@ -5,11 +5,11 @@ change.
 
 ## Current Phase
 
-- Feature 07 complete; Feature 08: TBD
+- Feature 08 complete; Feature 09 (Share Dialog) next
 
 ## Current Goal
 
-- Awaiting next feature spec
+- Awaiting go-ahead for feature 09
 
 ## Completed
 
@@ -345,13 +345,73 @@ change.
     `sslmode=verify-full` in `DATABASE_URL` (same behavior
     today) to silence it.
 
+- 08 Editor Workspace Shell (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/08-EDITOR-WORKSPACE-SHELL.md`):
+  - `lib/project-access.ts` (`server-only`) —
+    `getCurrentIdentity()` (Clerk user id + primary email,
+    null when signed out; wrapped in React `cache()` so the
+    layout and page share one Clerk lookup per request) and
+    `getProjectAccess(projectId, identity)` →
+    `{ project, role: "owner" | "collaborator" }` or null.
+  - `lib/project-data.ts` — new `findAccessibleProject()`
+    (one query: id AND (owner OR collaborator email)). The
+    case-insensitive collaborator filter is now one helper,
+    `hasCollaboratorEmail()`, shared with
+    `listProjectsForUser()`.
+  - `app/editor/layout.tsx` — `loadEditorProjects()` now uses
+    `getCurrentIdentity()` instead of its own Clerk calls.
+  - `app/editor/[projectId]/page.tsx` — params, session and
+    access check run inside the page's own `<Suspense>`
+    (spinner fallback), so the editor chrome stays in the
+    static shell (`◐`). Signed out → `redirectToSignIn()`;
+    no access or unknown id → `AccessDenied` (same screen,
+    existence not revealed); otherwise `ProjectWorkspace`.
+  - `components/editor/access-denied.tsx` — centered `Lock`
+    icon, "You don't have access to this workspace", a short
+    hint, and an outline "Back to projects" link to `/editor`.
+    Tokens only, no card.
+  - `components/editor/project-workspace.tsx` — canvas
+    placeholder (`bg-background`, "Canvas coming soon")
+    filling the space, plus a `w-80` AI chat placeholder
+    (`bg-sidebar`, `border-l border-border`). The chat panel
+    is hidden below `md` so the canvas keeps its width on
+    phones (the spec didn't cover mobile).
+  - `hooks/use-current-project.ts` — `useCurrentProjectId()`
+    (the `projectId` route param, via `useParams`) and
+    `useCurrentProject(projectsPromise)` (finds it in the
+    layout's owned + shared lists).
+  - `components/editor/editor-navbar.tsx` — takes
+    `projectsPromise`; center shows the open project's name
+    (`h1`), right shows an outline `Share` button (no
+    behavior) before `UserButton`. Both render nothing
+    outside a workspace or on Access Denied.
+  - `components/editor/project-sidebar.tsx` — each project
+    name is a `Link` to `/editor/<id>` (rename/delete stay
+    sibling buttons); the current project gets
+    `bg-sidebar-accent` and `aria-current="page"`.
+  - `/editor` home unchanged.
+  - Verified: `tsc`, `eslint`, `npm run build` pass
+    (`/editor/[projectId]` is `◐`). A script ran
+    `getProjectAccess` against the database (10 checks, all
+    pass): owner → `owner` (with or without email);
+    collaborator → `collaborator` with a different-case
+    email; stranger (with or without email) → null; unknown
+    id → null; `canvasJsonPath` not returned; test rows
+    deleted. Against `next start`, signed-out
+    `/editor/<id>` 307s to `/sign-in?redirect_url=...`.
+  - Not verified (needs a browser signed in with Clerk): the
+    owner opening a workspace with the name in the navbar,
+    a second account seeing Access Denied, sidebar click
+    + highlight. No canvas, Liveblocks, chat or sharing
+    logic added.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Feature 08 (TBD)
+- Feature 09 (Share Dialog)
 
 ## Open Questions
 
@@ -413,6 +473,21 @@ change.
   sidebar, so `/editor` keeps a static shell. Mutations go
   through the route handlers, then `router.refresh()`
   re-runs the layout.
+
+- The workspace navbar (project name, `Share`) and the
+  sidebar highlight read the open project from the layout's
+  project lists, matched by the `projectId` route param.
+  Why: the navbar and sidebar live in the shared
+  `app/editor/layout.tsx`, which can't receive data from
+  the page, and those lists hold exactly the projects the
+  user may open (same owner-or-collaborator rule). The page
+  still does its own server-side access check; the navbar
+  only displays. Rename/delete `router.refresh()` updates
+  both.
+- Server-side access checks go through
+  `lib/project-access.ts`
+  (`getCurrentIdentity` + `getProjectAccess`); its queries
+  live in `lib/project-data.ts`.
 
 - Project dialog state lives in `EditorShell` (via
   `useProjectDialogs`), not in each page, so the sidebar and

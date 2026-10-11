@@ -11,8 +11,8 @@ import type { EditorProjects } from "@/lib/projects";
 
 // Client entry point for the editor chrome. Owns the sidebar and project
 // dialog state and renders the canvas (children) underneath the floating
-// sidebar. `projectsPromise` comes from the server layout; the sidebar
-// resolves it behind its own Suspense boundary.
+// sidebar. `projectsPromise` comes from the server layout; the navbar and
+// sidebar resolve it behind their own Suspense boundaries.
 export function EditorShell({
   projectsPromise,
   children,
@@ -29,6 +29,7 @@ export function EditorShell({
         <EditorNavbar
           isSidebarOpen={isSidebarOpen}
           onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
+          projectsPromise={projectsPromise}
         />
         <main className="relative flex-1 overflow-hidden">
           <ProjectSidebar

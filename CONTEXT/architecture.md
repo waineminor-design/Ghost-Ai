@@ -41,7 +41,9 @@ paths below are relative to it.
   singleton, Liveblocks and Blob helpers. Database queries
   live in `server-only` data modules (e.g.
   `lib/project-data.ts`) that route handlers and server
-  components both call.
+  components both call. `lib/project-access.ts` resolves
+  the signed-in identity and whether it may open a project
+  (owner or collaborator).
 - `prisma/` — Prisma schema, one file per model under
   `prisma/models/`, and migrations.
   `prisma.config.ts` (repo root) points the CLI at it and
