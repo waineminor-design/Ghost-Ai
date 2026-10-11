@@ -25,10 +25,16 @@ export const getCurrentIdentity = cache(async (): Promise<Identity | null> => {
   const { userId } = await auth();
   if (!userId) return null;
 
+  // Collaborator access is granted by email, so only a verified primary
+  // address counts; an unverified one could belong to someone else.
   const user = await currentUser();
+  const primary = user?.primaryEmailAddress;
   return {
     userId,
-    email: user?.primaryEmailAddress?.emailAddress ?? null,
+    email:
+      primary?.verification?.status === "verified"
+        ? primary.emailAddress
+        : null,
   };
 });
 
