@@ -42,6 +42,13 @@ Current values are shadcn's neutral dark palette (see
 (e.g. a fainter text tone, success state, node colors) are
 added to `globals.css` first, then listed here.
 
+Exception: collaborator cursor colors are hex values in
+`USER_COLORS` in `lib/liveblocks.ts`. They are sent to
+other clients as Liveblocks user info, so they must be
+concrete values, not CSS variables. Each user gets one via
+`getUserColor(userId)`; never redefine the palette
+elsewhere.
+
 ## Typography
 
 | Role      | Font       | Variable                          |

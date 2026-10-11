@@ -49,7 +49,12 @@ paths below are relative to it.
   holds the email rules (trim + lowercase, validation) and
   share response types used by both server and client.
   `lib/api-client.ts` is the client helper for calling the
-  JSON route handlers.
+  JSON route handlers. `lib/liveblocks.ts` (`server-only`)
+  holds the cached Liveblocks Node client and
+  `getUserColor()` (the cursor color palette).
+- `liveblocks.config.ts` (repo root) — the global Liveblocks
+  types (Presence, UserMeta, Storage); every Liveblocks hook
+  and the Node client are typed from it.
 - `prisma/` — Prisma schema, one file per model under
   `prisma/models/`, and migrations.
   `prisma.config.ts` (repo root) points the CLI at it and
@@ -99,7 +104,11 @@ Hybrid storage. The database stays lean.
   owner-only actions.
 - A Liveblocks room token is issued only after verifying
   that the requesting user is the owner or a collaborator
-  of that project.
+  of that project. `POST /api/liveblocks-auth` uses access
+  tokens (`prepareSession`): full access (`*:write`) to
+  exactly the requested room (= project id), never a
+  wildcard pattern. Liveblocks user id = Clerk user id;
+  user info = name, avatar, color.
 - Background task status/tokens are scoped to the user who
   started the run.
 

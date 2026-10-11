@@ -10,6 +10,9 @@ export interface Identity {
   userId: string;
   // Primary email; collaborator rows are matched against it.
   email: string | null;
+  // Display name (full name, else username) and avatar URL from Clerk.
+  name: string | null;
+  imageUrl: string | null;
 }
 
 export type ProjectRole = "owner" | "collaborator";
@@ -35,6 +38,8 @@ export const getCurrentIdentity = cache(async (): Promise<Identity | null> => {
       primary?.verification?.status === "verified"
         ? primary.emailAddress
         : null,
+    name: user?.fullName ?? user?.username ?? null,
+    imageUrl: user?.imageUrl ?? null,
   };
 });
 

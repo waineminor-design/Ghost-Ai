@@ -5,12 +5,12 @@ change.
 
 ## Current Phase
 
-- Feature 09 (Share Dialog) complete; browser check with two
-  Clerk accounts pending
+- Feature 10 (Liveblocks Setup) complete; infrastructure
+  only, first browser use comes with feature 11
 
 ## Current Goal
 
-- Owner browser-checks feature 09, then the next spec
+- Feature 11 (Base Canvas)
 
 ## Completed
 
@@ -493,14 +493,80 @@ change.
     is not a function") while `tsc` and `next build` passed.
     Fix: stop the dev server, delete `.next/`, restart.
 
+- 10 Liveblocks Setup (2026-10-10,
+  spec: `CONTEXT/FEATURE-SPECS/10-LIVEBLOCKS-SETUP.md`):
+  - Installed `@liveblocks/client`, `react`, `react-ui`,
+    `react-flow`, `node` (all 3.24.3) and `@xyflow/react`
+    12.12.0. The repo-local `liveblocks-best-practices`
+    agent skill (`.claude/skills/`) was used for the auth
+    and typing patterns.
+  - `liveblocks.config.ts` — global `Liveblocks` types:
+    Presence `cursor` (`{ x, y } | null`) + `isThinking`;
+    UserMeta `id` (Clerk user id) + `info` (`name`,
+    `avatar`, `color`); Storage `Record<string, never>`
+    placeholder for feature 11.
+  - Deviation: the spec says avatar "URL or null", but
+    Liveblocks reserves `info.avatar` as `string |
+    undefined` (a `null` type fails its UserMeta check), so
+    `avatar` is optional and omitted when the user has none.
+    Clerk always returns an `imageUrl`, so in practice it is
+    always set.
+  - `lib/liveblocks.ts` (`server-only`) — `liveblocks`, one
+    Node client from `LIVEBLOCKS_SECRET_KEY` (cached on
+    `globalThis` outside production, like `lib/prisma.ts`;
+    throws a clear error if the key is missing), and
+    `getUserColor(userId)`: FNV-1a hash of the id into an
+    8-color `USER_COLORS` palette defined only there.
+  - `lib/project-access.ts` — `Identity` gained `name`
+    (`fullName ?? username`) and `imageUrl` from the Clerk
+    user `getCurrentIdentity()` already loads, so the auth
+    route doesn't make a second Clerk API call.
+  - `app/api/liveblocks-auth/route.ts` — `POST`: 401 signed
+    out → 400 unless the body is a JSON object with a
+    non-empty `room` string of ≤ 128 chars and no `*` (a `*`
+    would make it a prefix pattern) → 403 when
+    `getProjectAccess` returns null → `prepareSession(userId,
+    { userInfo: { name ?? "Anonymous", avatar, color } })`,
+    `allow(project.id, ["*:write"])` (the deprecated
+    `FULL_ACCESS` constant equals this), and Liveblocks'
+    `{ body, status }` returned unchanged (a failed call is
+    logged server-side).
+  - Verified: `tsc`, `eslint`, `npm run build` pass
+    (`/api/liveblocks-auth` is `ƒ`). A throwaway file
+    confirmed `useMyPresence` / `useOthers` / `useStorage`
+    pick up the config types. A script ran the real route
+    handler against the database with Clerk stubbed and
+    Liveblocks' HTTP call intercepted (30 checks, all pass):
+    401 signed out; 400 for invalid JSON, empty / array body,
+    missing / numeric / empty room, `*`, `lbtest-*`, 129
+    chars; 403 for a stranger, an unknown project, the owner
+    of another project, and a collaborator whose email is
+    unverified, with no Liveblocks call for any rejected
+    request; owner and collaborator (email in another case)
+    → 200 with the token body unchanged, `userId` = Clerk id,
+    permissions exactly `{ [projectId]: ["*:write"] }`, user
+    info name / avatar / color (username and "Anonymous"
+    fallbacks, avatar omitted when null); a Liveblocks 403 is
+    passed through unchanged; `getUserColor` is deterministic
+    and spreads over all 8 colors. Test rows deleted. Against
+    `next start`, a signed-out POST returns 401 JSON.
+  - Not verified: a real token from Liveblocks (the script
+    intercepted the call so no test users were registered
+    on the Liveblocks account). First real check is when
+    feature 11 connects to a room in the browser.
+  - No UI files changed; no `.env*` file read or edited.
+  - `npm audit` reports 13 high findings, all in existing
+    toolchain deps (`eslint-config-next`, `prisma`,
+    `shadcn`); none come from the new packages.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Browser check of feature 09 (two Clerk accounts), then
-  feature 10 (no spec yet)
+- Feature 11 (Base Canvas,
+  `CONTEXT/FEATURE-SPECS/11-BASE-CANVAS.md`)
 
 ## Open Questions
 
