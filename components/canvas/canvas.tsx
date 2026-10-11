@@ -15,10 +15,14 @@ import {
 import "@xyflow/react/dist/base.css";
 
 import { CanvasControls } from "@/components/canvas/canvas-controls";
+import { CollaboratorCursors } from "@/components/canvas/collaborator-cursors";
 import { LabeledEdge } from "@/components/canvas/labeled-edge";
 import { ShapeNode } from "@/components/canvas/shape-node";
 import { ShapePanel } from "@/components/canvas/shape-panel";
 import { TemplatesDialog } from "@/components/canvas/templates-dialog";
+import { SaveButton } from "@/components/editor/save-button";
+import { useCanvasAutosave } from "@/hooks/use-canvas-autosave";
+import { useCanvasRestore } from "@/hooks/use-canvas-restore";
 import { useCanvasShortcuts } from "@/hooks/use-canvas-shortcuts";
 import { useTemplateImport } from "@/hooks/use-template-import";
 import { DEFAULT_NODE_COLOR } from "@/lib/canvas-colors";
@@ -58,19 +62,34 @@ function isNotSelfConnection(connection: CanvasEdge | Connection) {
 // The shared React Flow canvas. Nodes and edges live in the room's
 // Liveblocks storage, so every change syncs to everyone in the room.
 // Theme colors come from the --xy-* token mapping in app/globals.css.
-// Also renders the templates dialog, since importing writes to the room.
+// Also renders the templates dialog, since importing writes to the room,
+// and the navbar's Save button: the canvas is saved as the project's
+// snapshot (and restored from it into an empty room).
 // Must render inside a RoomProvider, a Suspense boundary and EditorShell.
-export function Canvas() {
+export function Canvas({ projectId }: { projectId: string }) {
   return (
     <ReactFlowProvider>
-      <CanvasFlow />
+      <CanvasFlow projectId={projectId} />
     </ReactFlowProvider>
   );
 }
 
-function CanvasFlow() {
+function CanvasFlow({ projectId }: { projectId: string }) {
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, onDelete } =
     useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
+  const isCanvasEmpty = nodes.length === 0 && edges.length === 0;
+  const isRestoreDone = useCanvasRestore({
+    projectId,
+    isCanvasEmpty,
+    onNodesChange,
+    onEdgesChange,
+  });
+  const autosave = useCanvasAutosave({
+    projectId,
+    nodes,
+    edges,
+    enabled: isRestoreDone,
+  });
   const { screenToFlowPosition } = useReactFlow<CanvasNode, CanvasEdge>();
   useCanvasShortcuts();
   const importTemplate = useTemplateImport({ onNodesChange, onEdgesChange });
@@ -157,12 +176,19 @@ function CanvasFlow() {
         <Background variant={BackgroundVariant.Dots} />
         <ShapePanel onAddShape={addShapeAtViewportCenter} />
         <CanvasControls />
+        {/* Last, so other users' cursors also show over the panels. */}
+        <CollaboratorCursors />
       </ReactFlow>
       {/* Outside <ReactFlow>: the dialog is portaled, but React events
           still bubble through the React tree. */}
       <TemplatesDialog
-        isCanvasEmpty={nodes.length === 0 && edges.length === 0}
+        isCanvasEmpty={isCanvasEmpty}
         onImport={importTemplate}
+      />
+      <SaveButton
+        status={autosave.status}
+        canSave={autosave.canSave}
+        onSave={autosave.save}
       />
     </div>
   );

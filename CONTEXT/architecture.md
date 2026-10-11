@@ -38,12 +38,29 @@ paths below are relative to it.
   `components/canvas/canvas-room.tsx` is the client entry
   point that joins a project's Liveblocks room;
   `components/canvas/canvas.tsx` is the React Flow canvas
-  inside it.
+  inside it. `components/canvas/collaborator-cursors.tsx`
+  draws other users' cursors (Liveblocks' React Flow
+  `<Cursors>`, `cursor` presence in flow coordinates).
+  The navbar is outside the room, so the avatar stack
+  (`components/editor/presence-avatars.tsx`) renders inside
+  the room and is portaled into a navbar slot that
+  `EditorShell` shares through `PresenceSlotContext`
+  (`components/editor/presence-slot-context.ts`). The Save
+  button (`components/editor/save-button.tsx`) works the
+  same way: the canvas renders it, with the autosave
+  status, into the slot from `SaveSlotContext`.
 - `hooks/` — client hooks for dialog state, form state and
-  mutations, and the canvas actions (`use-canvas-actions.ts`:
+  mutations, canvas autosave (`use-canvas-autosave.ts`:
+  debounced, on-click and on-leave saves of the canvas
+  snapshot, one request at a time, with the Save button's
+  status) and restore (`use-canvas-restore.ts`: loads the
+  snapshot into an empty room once, through the flow), and
+  the canvas actions (`use-canvas-actions.ts`:
   zoom, fit view, undo/redo through the Liveblocks room
   history) shared by the control bar and the keyboard
-  shortcuts (`use-canvas-shortcuts.ts`).
+  shortcuts (`use-canvas-shortcuts.ts`), and the AI
+  Architect chat's local state (`use-ai-chat.ts`, owned by
+  the AI sidebar; no AI calls or persistence yet).
 - `lib/` — shared utilities: `cn()`, Prisma client
   singleton, Liveblocks and Blob helpers. Database queries
   live in `server-only` data modules (e.g.
@@ -68,7 +85,13 @@ paths below are relative to it.
   shape list (name, label, default size), the `shape` node
   type name, and the drag-and-drop payload
   (`application/ghost-shape`) with its parser.
-  `lib/canvas-colors.ts` maps node color keys
+  `lib/canvas-snapshot.ts` is the snapshot format
+  (`{ version: 1, savedAt, nodes, edges }`), its validation
+  and the stripping of local-only React Flow state
+  (`selected`, `dragging`, `measured`, `resizing`); shared by
+  the canvas route and the client. `lib/canvas-storage.ts`
+  (`server-only`) reads and writes snapshots in the private
+  Blob store. `lib/canvas-colors.ts` maps node color keys
   (`data.color`) to design-token classes; nodes store only
   the key. `lib/canvas-templates.ts` is the starter template
   library (`CANVAS_TEMPLATES`: ordinary `CanvasNode` /
@@ -107,7 +130,21 @@ Hybrid storage. The database stays lean.
     (project, email); indexed for lookups.
 - **Vercel Blob**: large artifacts — canvas snapshots
   (JSON) and generated specifications (Markdown). The
-  database stores only the reference/URL.
+  database stores only the reference/URL. The store is
+  private: blobs are written with `access: "private"` and
+  read on the server with `BLOB_READ_WRITE_TOKEN`; no Blob
+  URL or token reaches the browser.
+  - Canvas snapshot: one per project at
+    `canvas/<projectId>.json` (overwritten on every save),
+    `{ version: 1, savedAt, nodes, edges }`; its path is in
+    `Project.canvasJsonPath`. `PUT` / `GET
+    /api/projects/[projectId]/canvas` save and read it for
+    the owner and collaborators (body ≤ 2 MB). The canvas
+    autosaves it ~3 s after a change, on `Save`, and when
+    the page is hidden or left; an empty room is filled
+    from it once on load. Liveblocks stays the live source
+    of truth; the snapshot is the copy AI and spec
+    generation read.
 - **Liveblocks room storage**: live canvas state (nodes,
   edges) and presence during a session. The room id stays
   aligned with the project id. Storage holds one key,

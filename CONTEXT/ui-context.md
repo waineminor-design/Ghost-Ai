@@ -74,7 +74,10 @@ Exception: collaborator cursor colors are hex values in
 other clients as Liveblocks user info, so they must be
 concrete values, not CSS variables. Each user gets one via
 `getUserColor(userId)`; never redefine the palette
-elsewhere.
+elsewhere. Components receive a user's color as the
+`--user-color` CSS variable (inline style) and use it
+through `fill-(--user-color)`, `bg-(--user-color)` and
+`ring-(--user-color)`.
 
 ## Typography
 
@@ -118,12 +121,14 @@ app-specific wrappers in feature folders instead (e.g.
   `inert`. The AI sidebar starts open from `lg` up and
   closed below. In a project workspace the navbar left
   section holds `Templates` (`LayoutTemplate`, ghost, icon
-  only below `sm`) after the project sidebar toggle, the
+  only below `sm`) and the `Save` button after the project
+  sidebar toggle, the
   center shows the project name and the right section holds
-  the AI sidebar toggle (`PanelRightOpen` /
-  `PanelRightClose`) and `Share` (icon only below `sm`)
-  before the `UserButton`. `Templates` sits on the left
-  because the right section is full on a 375 px phone.
+  the presence avatar stack, the AI sidebar toggle
+  (`PanelRightOpen` / `PanelRightClose`) and `Share` (icon
+  only below `sm`) before the `UserButton`. `Templates` and
+  `Save` sit on the left because the right section is full
+  on a 375 px phone.
 - Canvas: React Flow (`colorMode="dark"`) fills the
   workspace, with a dot
   background and the canvas control bar (no minimap).
@@ -134,6 +139,26 @@ app-specific wrappers in feature folders instead (e.g.
   canvas area shows a centered spinner and "Connecting to
   room…"; a failed connection shows a centered
   `TriangleAlert` (`text-destructive`) and a short message.
+- AI sidebar: a header with shadcn `Tabs` (`AI Architect`
+  with `Sparkles`, `Specs` with `FileText`, full-width list).
+  AI Architect: messages in a `ScrollArea` that fills the
+  space above the composer and scrolls to the newest; user
+  bubbles right-aligned (`bg-primary`), assistant bubbles
+  left-aligned (`bg-muted`) after a small round `Sparkles`
+  icon (`bg-sidebar-accent`); bubbles `rounded-lg`, `text-sm`,
+  at most 85% wide. While empty: a centered `Sparkles`
+  circle, the intro "Describe a system and I'll design it on
+  the canvas" and outline starter-prompt buttons that fill
+  the composer. Composer pinned at the bottom
+  (`border-t`): a one-line `Textarea` that grows to six
+  lines and then scrolls, and an icon-only send button
+  (`ArrowUp`, disabled while the text is blank). Enter
+  sends, Shift+Enter adds a line. Specs: a short line of
+  copy, a full-width `Generate spec` button (disabled, with
+  "Spec generation is coming soon."), and an example spec
+  card (`rounded-lg`, `bg-card`): `FileText` + title,
+  "Generated" with a muted bar for the date, muted skeleton
+  lines and a disabled outline `Download` button.
 - Canvas control bar: the same pill as the shape panel
   (`rounded-full`, `bg-card`, `border-border`, `shadow-lg`)
   at the bottom-left of the canvas: zoom out, zoom in, fit
@@ -197,6 +222,35 @@ app-specific wrappers in feature folders instead (e.g.
   link back to `/editor`; no card.
 - Navbar: fixed-height (`h-12`) top bar with left, center
   and right sections and a subtle bottom border.
+- Save button: ghost, `sm`, icon only below `sm`; the label
+  and icon show the canvas autosave status: `Save` (`Save`
+  icon, idle / up to date), `Saving…` (spinning
+  `LoaderCircle`), `Saved` (`Check`, about 2 s, then back to
+  `Save`) and `Save failed` (`TriangleAlert`,
+  `text-destructive`; clicking retries). Disabled only while
+  a saved canvas is being restored into an empty room. Only
+  in a connected room; never on the editor home. A hidden
+  status region announces failures only.
+- Presence avatar stack: everyone in the room, you first,
+  one avatar per user, as overlapping (`-ml-2`) `size-8`
+  shadcn `Avatar`s — Clerk image, or initials on a circle
+  in the user's cursor color (`text-background`) — each
+  ringed in that color (`ring-2`, `ring-offset-2` in
+  `--background`, which also separates the overlap).
+  Tooltip below with the name, "(you)" on your own. At most
+  4 avatars then a muted `+N` circle from `lg`, 2 then `+N`
+  between `md` and `lg`, hidden below `md` (no room on
+  phones). Only in a connected room; never on the editor
+  home.
+- Collaborator cursors: every other user's pointer on the
+  canvas, at the same diagram point for everyone whatever
+  their pan/zoom. A 12×16 pointer arrow filled in the
+  user's cursor color with a `--foreground` outline, and
+  the name on a `rounded-full` pill in that color
+  (`text-xs`, `font-medium`, `text-background`,
+  `shadow-sm`) below-right of the tip. Above the nodes and
+  panels, `pointer-events: none`. Your own cursor is not
+  drawn.
 - Project sidebar: floats above the canvas and slides in
   from the left; it does not push page content. On mobile,
   tapping outside closes it (backdrop scrim).

@@ -21,6 +21,10 @@ interface EditorNavbarProps {
   isAiSidebarOpen: boolean;
   onToggleAiSidebar: () => void;
   onOpenTemplates: () => void;
+  // Receive the elements the canvas room portals the avatar stack and the
+  // Save button into.
+  presenceSlotRef: (element: HTMLElement | null) => void;
+  saveSlotRef: (element: HTMLElement | null) => void;
   projectsPromise: Promise<EditorProjects>;
 }
 
@@ -30,6 +34,8 @@ export function EditorNavbar({
   isAiSidebarOpen,
   onToggleAiSidebar,
   onOpenTemplates,
+  presenceSlotRef,
+  saveSlotRef,
   projectsPromise,
 }: EditorNavbarProps) {
   const ToggleIcon = isSidebarOpen ? PanelLeftClose : PanelLeftOpen;
@@ -52,6 +58,10 @@ export function EditorNavbar({
             onOpenTemplates={onOpenTemplates}
           />
         </Suspense>
+        {/* The canvas renders the Save button here, so it only shows in a
+            workspace. In the left section because the right one is full
+            on phones; `contents` leaves no gap while it is empty. */}
+        <div ref={saveSlotRef} className="contents" />
       </div>
       <div className="flex min-w-0 items-center justify-center">
         <Suspense>
@@ -64,6 +74,7 @@ export function EditorNavbar({
             projectsPromise={projectsPromise}
             isAiSidebarOpen={isAiSidebarOpen}
             onToggleAiSidebar={onToggleAiSidebar}
+            presenceSlotRef={presenceSlotRef}
           />
         </Suspense>
         <UserButton />
@@ -105,15 +116,18 @@ function TemplatesAction({
   );
 }
 
-// Actions for the open workspace; nothing outside a workspace.
+// Actions for the open workspace; nothing outside a workspace. The
+// presence slot is where the canvas room renders the avatar stack.
 function WorkspaceActions({
   projectsPromise,
   isAiSidebarOpen,
   onToggleAiSidebar,
+  presenceSlotRef,
 }: {
   projectsPromise: Promise<EditorProjects>;
   isAiSidebarOpen: boolean;
   onToggleAiSidebar: () => void;
+  presenceSlotRef: (element: HTMLElement | null) => void;
 }) {
   const { currentUserId } = use(projectsPromise);
   const project = useCurrentProject(projectsPromise);
@@ -123,6 +137,9 @@ function WorkspaceActions({
 
   return (
     <>
+      {/* `contents`: the stack takes part in this flex row directly, and
+          leaves no gap while it is hidden or not rendered. */}
+      <div ref={presenceSlotRef} className="contents" />
       <Button
         variant="ghost"
         size="icon"
