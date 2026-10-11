@@ -182,11 +182,40 @@ app-specific wrappers in feature folders instead (e.g.
   successful run, their canvas fits the view to the whole
   diagram (only their view moves). Enter
   sends, Shift+Enter adds a line. Specs: a short line of
-  copy, a full-width `Generate spec` button (disabled, with
-  "Spec generation is coming soon."), and an example spec
-  card (`rounded-lg`, `bg-card`): `FileText` + title,
-  "Generated" with a muted bar for the date, muted skeleton
-  lines and a disabled outline `Download` button.
+  copy and a full-width `Generate spec` button, disabled
+  while the canvas is empty (with the muted `text-xs` hint
+  "Add something to the canvas first") and while this
+  user's spec run is in progress. While it runs, a
+  `role="status"` row under it (`text-xs`) shows a spinning
+  `LoaderCircle` and the run's current step ("Reading the
+  canvas", "Writing the spec", ...; "Starting…" before the
+  first). A failed run shows "Couldn't generate the spec —
+  try again" (`text-xs text-destructive`, `role="alert"`),
+  only to the person who started it. When it succeeds the
+  list reloads and the new spec opens in the preview. Below,
+  the project's specs, newest first, the same for everyone
+  (a collaborator's new spec appears without a reload): one
+  card per spec (`rounded-lg`, `bg-card`): `FileText` +
+  title, a muted `text-xs` line with the relative date ("5
+  min ago", full date on hover) and "· by <name>", and
+  outline `sm` `Preview` (`Eye`) and `Download` buttons
+  (aria-labels name the spec). Empty: "No specs yet —
+  generate one from your diagram".
+- Spec preview: `EditorDialog` widened to `max-w-4xl` from
+  `sm` and `min(56rem, 100dvh - 2rem)` tall; the title is
+  the spec's title, the rendered Markdown scrolls between
+  the fixed header and footer (`border-t`, centered column
+  up to `max-w-3xl`), and the footer holds a `Download`
+  button. Markdown is rendered with `react-markdown` +
+  `remark-gfm` only (no raw HTML) and styled from the tokens
+  (`components/editor/spec-markdown.tsx`): `font-heading`
+  headings (`h2` with a `border-b`), disc/decimal lists with
+  muted markers, `bg-muted` inline code and `rounded-lg`
+  code blocks, bordered tables with `bg-muted` header cells
+  (scrolling sideways when wide), `text-primary` links that
+  open in a new tab. While loading: a centered spinner and
+  "Loading the spec…"; a failed load: "Couldn't load the
+  spec — try again" (`text-destructive`).
 - Canvas control bar: the same pill as the shape panel
   (`rounded-full`, `bg-card`, `border-border`, `shadow-lg`)
   at the bottom-left of the canvas: zoom out, zoom in, fit

@@ -5,6 +5,12 @@ change.
 
 ## Current Phase
 
+- Feature 30 (Spec UI Integration) built: the Specs tab
+  generates a spec from the canvas with live progress, lists
+  the project's specs (refreshed for everyone through the
+  room), previews one in a wide dialog and downloads it.
+  `tsc`, `eslint`, `npm run build` pass and 42 offline
+  checks pass. The live checks need the owner (below).
 - Feature 29 (Spec Persistence and Download) built: the
   `ProjectSpec` model and migration (applied), saving in the
   `spec-generator` task and the three spec routes. `tsc`,
@@ -21,6 +27,38 @@ change.
 
 ## Current Goal
 
+- Owner runs feature 30's check. Restart `npm run dev`
+  first (Ctrl+C, then `npm run dev` again: new packages were
+  installed), and keep `npm run trigger:dev` running. Open
+  a project you own with something on the canvas
+  (`http://localhost:3001/editor/<id>`), open the AI sidebar
+  and click the `Specs` tab.
+  1. Click `Generate spec`. Expected: the button greys out,
+     a spinner row shows "Reading the canvas", then "Writing
+     the spec"; after a minute or two the preview window
+     opens by itself with the new spec, and the spec appears
+     at the top of the list ("just now · by <your name>").
+  2. In the preview: it fills most of the screen, the spec
+     scrolls inside it, and headings, bullet lists and any
+     tables look tidy in the dark theme. Close it with the X
+     or Escape.
+  3. Click `Download` (in the preview footer, or on a row).
+     Expected: the browser saves a file like
+     `my-project-technical-spec.md`.
+  4. Two people: open the same project in a second browser
+     (e.g. a private window signed in as a collaborator),
+     Specs tab open. Generate in the first window. Expected:
+     the new spec appears in the second window's list
+     without reloading (only the first window shows the
+     spinner and opens the preview).
+  5. Empty canvas: in a project with nothing on the canvas,
+     `Generate spec` is greyed out with "Add something to
+     the canvas first" under it, and the list says "No specs
+     yet — generate one from your diagram".
+  6. Throughout: F12 → Console shows no "missing access
+     token" errors.
+  This also covers most of feature 28's and 29's console
+  checks below (generate, list, preview, download).
 - Owner runs feature 29's check (after the restart above),
   in a project you own with something on the canvas
   (`http://localhost:3001/editor/<id>`), F12, Console tab:
@@ -2021,6 +2059,91 @@ change.
     `trigger:dev`): a real `spec-generator` run saving its
     file and row, the routes' signed-in 404s and data, the
     browser download, and `specsUpdatedAt` in the room.
+- 30 Spec UI Integration (2026-10-11,
+  spec: `CONTEXT/FEATURE-SPECS/30-SPEC-UI-INTEGRATION.md`):
+  - Installed `react-markdown` ^10.1.0 and `remark-gfm`
+    ^4.0.1 (no `rehype-raw`). The `npm audit` findings all
+    come from packages that were already installed.
+  - Generate: new `hooks/use-spec-run.ts` (owned by
+    `AiSidebar`, like `useDesignRun`) sends
+    `POST /api/ai/spec` `{ projectId }`, then asks the token
+    route for a token. New
+    `components/editor/spec-run-follower.tsx` follows the
+    run with `useRealtimeRun` (payload skipped), mounted by
+    the sidebar only once a run id and a non-empty token
+    exist, keyed by the run id. It reports the step message
+    from the `status` metadata (a `failed` step is skipped,
+    since the attempt may be retried) and ends on the run's
+    final state (`isCompleted` or `isCancelled`), with the
+    `specId` from the output.
+  - The button is disabled while the room's canvas has no
+    nodes (hint "Add something to the canvas first"; also
+    while storage loads, without the hint) and while this
+    user's run is in progress. A status row shows a spinner
+    and the step ("Starting…" until the first). Success
+    reloads the list and opens the new spec's preview. A
+    start that fails or a run that fails shows "Couldn't
+    generate the spec — try again", never the raw error.
+  - List: new `hooks/use-spec-list.ts` loads
+    `GET /api/projects/[projectId]/specs` when the Specs tab
+    mounts, and again when the room's `specsUpdatedAt`
+    changes or the sidebar bumps its refresh key (after this
+    user's run). Rows: title, relative date (new
+    `lib/relative-time.ts`; refreshed every minute, full date
+    on hover), "· by <name>", `Preview` and `Download`.
+    Empty: "No specs yet — generate one from your diagram".
+  - Preview: new `components/editor/spec-preview-dialog.tsx`
+    on `EditorDialog` (`sm:max-w-4xl`,
+    `min(56rem, 100dvh - 2rem)` tall, own scroll, `nokey`)
+    loads `GET /api/projects/[projectId]/specs/[specId]` and
+    renders it with the new
+    `components/editor/spec-markdown.tsx` (`react-markdown`
+    + `remark-gfm`, token-styled typography through
+    descendant classes); `Download` in the footer. Lives in
+    `AiSidebar` (portal), so it opens even if the user
+    switched tabs during the run.
+  - Download: a plain link to the download route (its
+    `Content-Disposition: attachment` saves the `.md`).
+  - New `parseSpecList` / `parseSpecPreview` in
+    `lib/specs.ts` validate the responses on the client.
+  - Extra, not in the spec: if the token request fails or
+    the realtime subscription breaks, the user stops
+    following the run without an error and the button works
+    again: the run carries on and its spec still appears in
+    the list through `specsUpdatedAt`.
+  - Extra, not in the spec: links inside a spec open in a
+    new tab, so clicking one doesn't leave the editor. A
+    load failure in the preview shows "Couldn't load the
+    spec — try again"; a failed list load "Couldn't load
+    the specs — try again later".
+  - `CONTEXT/architecture.md` and `CONTEXT/ui-context.md`
+    updated.
+  - Verified: `tsc`, `eslint`, `npm run build` pass; the
+    built CSS contains the preview's token classes. Scratch
+    tests (no network, no keys; real React in jsdom, stubbed
+    `fetch`): 42 checks — relative dates (just now, minutes,
+    hours, days, dates with and without the year, future and
+    junk input); the response parsers; the Markdown render
+    (headings, lists, GFM table, code block; `<script>` and
+    `<img onerror>` stay text, a `javascript:` link loses its
+    URL, links open in a new tab); the spec run (start
+    request URL and body; failed start, failed run and a
+    `202` without `runId` show the error and unlock; not
+    followed before the token; a second click while busy is
+    ignored; step messages; success calls back with the spec
+    id; a failed or empty token unlocks with no error and is
+    never followed; unmounting mid-request aborts with no
+    React errors); the preview dialog (loads the right URL,
+    the spec's title, renders headings and a table, footer
+    download link, wide/tall/`nokey` classes, labelled by its
+    title, friendly error on 404).
+  - Not verified (needs the owner, sign-in and
+    `trigger:dev`): a real run's progress and preview, the
+    browser download, a collaborator's list refreshing live,
+    the empty-canvas button, and no "missing access token"
+    errors. Not tested offline: the follower (needs
+    Trigger.dev's realtime API) and the panel's room reads
+    (need a Liveblocks room).
 
 ## In Progress
 
@@ -2028,9 +2151,18 @@ change.
 
 ## Next Up
 
-- 30 Spec UI (spec in `CONTEXT/FEATURE-SPECS/`).
+- None planned yet.
 
 ## Open Questions
+
+- Raw HTML in a spec (feature 30): it is not rendered, as
+  the spec says; react-markdown shows it as plain text (a
+  literal `<br>` stays visible). The model rarely writes
+  HTML. Say if it should be hidden instead.
+- Spec run that can't be followed (feature 30): if the
+  token request fails, the starter sees no progress and no
+  preview opens; the spec still appears in the list once
+  saved. Say if a note should be shown.
 
 - Spec files when a project is deleted (feature 29): the
   `ProjectSpec` rows go with the project (cascade), but the

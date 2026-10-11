@@ -193,7 +193,23 @@ paths below are relative to it.
   skipped) and reports when it ends; the sidebar mounts it
   only once both a run id and a non-empty token exist (the
   hook throws "missing access token" during render
-  otherwise), keyed by the run id. `components/canvas/collaborator-cursors.tsx`
+  otherwise), keyed by the run id.
+  `components/editor/spec-run-follower.tsx` does the same
+  for the spec run this user started from the Specs tab
+  (`hooks/use-spec-run.ts`: `POST /api/ai/spec`, then the
+  token route), skipping only the payload: it reports the
+  step message from the run's `status` metadata (a
+  `failed` step is skipped, since the attempt may be
+  retried) and the saved `specId` from its output, which
+  opens the spec preview. The spec list
+  (`hooks/use-spec-list.ts`) loads when the Specs tab
+  mounts and again whenever the room's `specsUpdatedAt`
+  changes; the preview (`spec-preview-dialog.tsx`) renders
+  the Markdown with `react-markdown` + `remark-gfm` only,
+  never raw HTML (no `rehype-raw`). The spec run, the
+  follower and the preview dialog live in `AiSidebar`, so
+  switching tabs doesn't drop them.
+  `components/canvas/collaborator-cursors.tsx`
   draws other users' cursors (Liveblocks' React Flow
   `<Cursors>`, `cursor` presence in flow coordinates).
   The navbar is outside the room, so the avatar stack
@@ -384,7 +400,8 @@ Hybrid storage. The database stays lean.
     (the raw Markdown as an attachment named
     `<slug-of-title>.md`). The response types and the file
     name helper are in `lib/specs.ts` (shared with the
-    client).
+    client), with `parseSpecList` / `parseSpecPreview`,
+    which the client uses to validate the responses.
 - **Liveblocks room storage**: live canvas state (nodes,
   edges) and presence during a session. The room id stays
   aligned with the project id. Storage holds `flow`
@@ -415,7 +432,7 @@ Hybrid storage. The database stays lean.
   messages and show at most the newest 200.
   The optional `specsUpdatedAt` (feature 29, ISO string) is
   when the spec generator last saved a spec, so open
-  clients know to refresh their spec list (feature 30).
+  clients refresh their spec list (feature 30).
   Rooms without a saved spec don't have it; the first save
   creates it.
 

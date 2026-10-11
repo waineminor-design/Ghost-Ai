@@ -30,3 +30,48 @@ export interface SpecPreview {
 export function toSpecFileName(title: string): string {
   return `${toProjectSlug(title) || "spec"}.md`;
 }
+
+// Validates a GET /api/projects/:projectId/specs response; null when it
+// isn't one. Malformed entries are skipped.
+export function parseSpecList(data: unknown): SpecSummary[] | null {
+  if (!isRecord(data) || !Array.isArray(data.specs)) return null;
+  return data.specs.flatMap((entry: unknown) => {
+    if (
+      !isRecord(entry) ||
+      typeof entry.id !== "string" ||
+      typeof entry.title !== "string" ||
+      typeof entry.createdAt !== "string" ||
+      typeof entry.sizeBytes !== "number"
+    ) {
+      return [];
+    }
+    return [
+      {
+        id: entry.id,
+        title: entry.title,
+        createdAt: entry.createdAt,
+        createdByName: typeof entry.createdByName === "string" ? entry.createdByName : null,
+        sizeBytes: entry.sizeBytes,
+      },
+    ];
+  });
+}
+
+// Validates a GET /api/projects/:projectId/specs/:specId response; null
+// when it isn't one.
+export function parseSpecPreview(data: unknown): SpecPreview | null {
+  if (
+    !isRecord(data) ||
+    typeof data.id !== "string" ||
+    typeof data.title !== "string" ||
+    typeof data.createdAt !== "string" ||
+    typeof data.markdown !== "string"
+  ) {
+    return null;
+  }
+  return { id: data.id, title: data.title, createdAt: data.createdAt, markdown: data.markdown };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
