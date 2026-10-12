@@ -2174,6 +2174,10 @@ change.
   instance needs an owned domain); same Prisma Postgres DB,
   Blob store and Gemini key as local dev. Local
   `.env.local` keeps the development keys.
+- Access: Clerk sign-up mode is Invite-only (2026-10-11).
+  The owner's two existing accounts sign in; anyone else
+  needs an invitation (Clerk dashboard → Users →
+  Invitations). Applies to local dev too (same instance).
 - Trigger.dev Production: tasks deployed with
   `npx trigger deploy` (version 20261011.1). Its Production
   env vars: GOOGLE_GENERATIVE_AI_API_KEY,
