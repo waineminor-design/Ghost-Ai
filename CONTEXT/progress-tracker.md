@@ -2163,11 +2163,41 @@ change.
 
 - None.
 
+## Deployment
+
+- Live (2026-10-11): https://ghost-ai-nu-five.vercel.app
+  (Vercel project "ghost-ai", team RedbyWM, built from
+  `main`; env vars set for Production and Preview).
+- Keys: production Liveblocks project ("Ghost AI
+  Production") and Trigger.dev Production key; Clerk dev
+  instance (shows "Development mode"; a Clerk production
+  instance needs an owned domain); same Prisma Postgres DB,
+  Blob store and Gemini key as local dev. Local
+  `.env.local` keeps the development keys.
+- Trigger.dev Production: tasks deployed with
+  `npx trigger deploy` (version 20261011.1). Its Production
+  env vars: GOOGLE_GENERATIVE_AI_API_KEY,
+  LIVEBLOCKS_SECRET_KEY (production), DATABASE_URL,
+  BLOB_READ_WRITE_TOKEN.
+- Owner-verified live: sign-in, the project list, the
+  canvas restored from its Blob snapshot into the empty
+  production room, an AI design run, and a spec run with
+  preview and download.
+- Redeploying: a merge to `main` redeploys Vercel by
+  itself. Changes under `trigger/` (or the lib/ code the
+  tasks import) also need `npx trigger deploy` after the
+  merge, or the live tasks keep running the old code. A
+  new env var must be added in Vercel (then redeploy) and,
+  if a task reads it, in Trigger.dev Production.
+- Migrations: the live app shares the dev database, so a
+  migration applied locally is already live; deploy the
+  code that needs it right after.
+
 ## Next Up
 
-- Deploy: Vercel (from `main`), production Liveblocks and
-  Trigger.dev keys, `npx trigger deploy` with the task
-  keys set in Trigger.dev's Production environment.
+- None planned. Optional: Clerk production instance with a
+  custom domain; delete a project's Blob files with the
+  project (see Open Questions).
 
 ## Open Questions
 
